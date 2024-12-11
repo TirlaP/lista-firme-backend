@@ -1,3 +1,4 @@
+// src/controllers/company.controller.js
 const httpStatus = require('http-status');
 const catchAsync = require('../utils/catchAsync');
 const { companyService } = require('../services');
@@ -10,7 +11,7 @@ const getCompanies = catchAsync(async (req, res) => {
   const options = {
     page: parseInt(req.query.page, 10) || 1,
     limit: Math.min(parseInt(req.query.limit, 10) || 10, 100),
-    sortBy: req.query.sortBy,
+    sortBy: req.query.sortBy || 'registration_date_desc',
   };
 
   const result = await companyService.queryCompanies(filter, options);
@@ -88,7 +89,7 @@ const getCompanyStats = catchAsync(async (req, res) => {
 const getStats = catchAsync(async (req, res) => {
   const stats = await companyService.getStats();
 
-  res.set('Cache-Control', 'public, max-age=300');
+  res.set('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
   res.send(stats);
 });
 

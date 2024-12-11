@@ -1,159 +1,133 @@
-const prisma = require('../config/prisma');
+const { CAEN } = require('../models');
 const cacheService = require('./cache.service');
-const logger = require('../config/logger');
 
 class CAENService {
   constructor() {
     this.CACHE_KEYS = {
-      ALL_CODES: 'caen:all_codes',
-      CODE_PREFIX: 'caen:code:',
-      SEARCH_PREFIX: 'caen:search:',
-      MAP_KEY: 'caen:code_map',
+      ALL_CODES: 'all_caen_codes',
+      CODE_PREFIX: 'caencode',
+      SEARCH_PREFIX: 'caensearch',
     };
-
     this.CACHE_TTL = {
-      ALL_CODES: 86400, // 24 hours
-      SINGLE_CODE: 86400, // 24 hours
-      SEARCH: 3600, // 1 hour
-      MAP: 86400, // 24 hours
+      ALL_CODES: 3600, // 1 hour
+      SINGLE_CODE: 1800, // 30 minutes
+      SEARCH: 900, // 15 minutes
     };
-
-    this.initializeCodeMap();
-  }
-
-  async initializeCodeMap() {
-    try {
-      const hasMap = await cacheService.get(this.CACHE_KEYS.MAP_KEY);
-      if (!hasMap) {
-        const codes = await prisma.caenCode.findMany();
-        const codeMap = {};
-
-        codes.forEach((code) => {
-          codeMap[code.code] = {
-            code: code.code,
-            name: code.name,
-            section: `${code.sectionCode} - ${code.sectionName}`,
-            division: `${code.divisionCode} - ${code.divisionName}`,
-          };
-        });
-
-        await cacheService.set(this.CACHE_KEYS.MAP_KEY, codeMap, this.CACHE_TTL.MAP);
-        logger.info('CAEN code map initialized');
-      }
-    } catch (error) {
-      logger.error('Failed to initialize CAEN code map:', error);
-    }
-  }
-
-  async getCodeMap() {
-    return cacheService.get(this.CACHE_KEYS.MAP_KEY);
   }
 
   async searchCAENCodes(query) {
     try {
-      if (!query || query.length < 2) {
-        return [];
+      const cacheKey = `${this.CACHE_KEYS.SEARCH_PREFIX}${query}`;
+
+      // Try to get from cache first
+      const cachedResults = await cacheService.get(cacheKey);
+      if (cachedResults) {
+        return cachedResults;
       }
 
-      const cacheKey = `${this.CACHE_KEYS.SEARCH_PREFIX}${query.toLowerCase()}`;
-      let results = await cacheService.get(cacheKey);
+      // Convert query to lowercase for case-insensitive search
+      const searchTerm = query.toLowerCase();
+      console.log('Searching for:', searchTerm);
 
-      if (results) {
-        return results;
-      }
+      const searchQuery = {
+        $or: [
+          { code: { $regex: searchTerm, $options: 'i' } },
+          { name: { $regex: searchTerm, $options: 'i' } },
+          { division_code: { $regex: searchTerm, $options: 'i' } },
+          { division_name: { $regex: searchTerm, $options: 'i' } },
+        ],
+      };
 
-      results = await prisma.caenCode.findMany({
-        where: {
-          OR: [
-            { code: { contains: query, mode: 'insensitive' } },
-            { name: { contains: query, mode: 'insensitive' } },
-            { divisionCode: { contains: query, mode: 'insensitive' } },
-            { divisionName: { contains: query, mode: 'insensitive' } },
-          ],
-        },
-        orderBy: { code: 'asc' },
-      });
+      const results = await CAEN.find(searchQuery)
+        .select('code name division_code division_name section_code section_name')
+        .sort({ code: 1 })
+        .lean();
+
+      console.log(`Found ${results.length} results`);
 
       const formattedResults = results.map((caen) => ({
         value: caen.code,
         label: `${caen.code} - ${caen.name}`,
         details: {
-          division: `${caen.divisionCode} - ${caen.divisionName}`,
-          section: `${caen.sectionCode} - ${caen.sectionName}`,
+          division: `${caen.division_code} - ${caen.division_name}`,
+          section: `${caen.section_code} - ${caen.section_name}`,
         },
       }));
 
+      // Cache the results
       await cacheService.set(cacheKey, formattedResults, this.CACHE_TTL.SEARCH);
+
       return formattedResults;
     } catch (error) {
-      logger.error('Error in searchCAENCodes:', error);
+      console.error('Error in searchCAENCodes:', error);
       throw error;
     }
   }
 
   async getCAENByCode(code) {
     try {
-      if (!code) return null;
-
       const cacheKey = `${this.CACHE_KEYS.CODE_PREFIX}${code}`;
-      let result = await cacheService.get(cacheKey);
 
-      if (result) {
-        return result;
+      // Try to get from cache first
+      const cachedResult = await cacheService.get(cacheKey);
+      if (cachedResult) {
+        return cachedResult;
       }
 
-      result = await prisma.caenCode.findUnique({
-        where: { code },
-      });
+      const result = await CAEN.findOne({ code }).lean();
 
       if (result) {
+        // Cache the result
         await cacheService.set(cacheKey, result, this.CACHE_TTL.SINGLE_CODE);
       }
 
       return result;
     } catch (error) {
-      logger.error('Error in getCAENByCode:', error);
+      console.error('Error in getCAENByCode:', error);
       throw error;
     }
   }
 
   async getAllCAENCodes() {
     try {
-      let results = await cacheService.get(this.CACHE_KEYS.ALL_CODES);
-
-      if (results) {
-        return results;
+      // Try to get from cache first
+      const cachedResults = await cacheService.get(this.CACHE_KEYS.ALL_CODES);
+      if (cachedResults) {
+        return cachedResults;
       }
 
-      results = await prisma.caenCode.findMany({
-        orderBy: { code: 'asc' },
-      });
+      const results = await CAEN.find({}).sort({ code: 1 }).lean().exec(); // Added .exec() for better error handling
 
-      if (results?.length > 0) {
+      if (results && results.length > 0) {
+        // Cache the results
         await cacheService.set(this.CACHE_KEYS.ALL_CODES, results, this.CACHE_TTL.ALL_CODES);
       }
 
       return results;
     } catch (error) {
-      logger.error('Error in getAllCAENCodes:', error);
+      console.error('Error in getAllCAENCodes:', error);
       throw error;
     }
   }
 
+  // Method to clear all CAEN-related caches
   async clearCache() {
     try {
-      await Promise.all([
-        cacheService.del(this.CACHE_KEYS.ALL_CODES),
-        cacheService.del(this.CACHE_KEYS.MAP_KEY),
-        cacheService.delPattern(`${this.CACHE_KEYS.CODE_PREFIX}*`),
-        cacheService.delPattern(`${this.CACHE_KEYS.SEARCH_PREFIX}*`),
-      ]);
-      logger.info('CAEN cache cleared');
+      const keys = [
+        this.CACHE_KEYS.ALL_CODES,
+        ...(await cacheService.keys(`${this.CACHE_KEYS.CODE_PREFIX}*`)),
+        ...(await cacheService.keys(`${this.CACHE_KEYS.SEARCH_PREFIX}*`)),
+      ];
+
+      for (const key of keys) {
+        await cacheService.del(key);
+      }
     } catch (error) {
-      logger.error('Error clearing CAEN cache:', error);
+      console.error('Error clearing CAEN cache:', error);
       throw error;
     }
   }
 }
 
-module.exports = new CAENService();
+const caenService = new CAENService();
+module.exports = caenService;

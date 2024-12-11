@@ -1,314 +1,296 @@
-const prisma = require('../config/prisma');
-const cacheService = require('./cache.service');
-const caenService = require('./caen.service');
-const logger = require('../config/logger');
+// src/services/company.service.js
+const { Company } = require('../models');
+const { CAEN } = require('../models');
+const NodeCache = require('node-cache');
 
 class CompanyService {
   constructor() {
-    this.CACHE_KEYS = {
-      COMPANIES_PREFIX: 'companies:list:',
-      COMPANY_PREFIX: 'company:detail:',
-      COUNT_PREFIX: 'companies:count:',
-      STATS: 'companies:stats',
-    };
+    this.cache = new NodeCache({
+      stdTTL: 300,
+      checkperiod: 60,
+    });
 
-    this.CACHE_TTL = {
-      COMPANIES_LIST: 3600, // 1 hour
-      COMPANY_DETAIL: 7200, // 2 hours
-      COUNT: 3600, // 1 hour
-      STATS: 3600, // 1 hour
-    };
+    this.caenCache = new NodeCache({
+      stdTTL: 3600,
+      checkperiod: 120,
+    });
 
-    this.PAGE_SIZE_LIMIT = 100;
+    this.initializeCAENCodes();
   }
 
-  _buildCacheKey(filter, options) {
-    const filterKey = Object.entries(filter || {})
-      .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-      .map(([key, value]) => `${key}:${value}`)
-      .join('_');
-    return `${this.CACHE_KEYS.COMPANIES_PREFIX}${filterKey}:page:${options.page}:limit:${options.limit}`;
+  async initializeCAENCodes() {
+    try {
+      const codes = await CAEN.find({}).lean();
+      const caenMap = {};
+      codes.forEach((code) => {
+        caenMap[code.code] = code;
+      });
+      this.caenCache.set('caen-codes', caenMap);
+    } catch (error) {
+      console.error('Failed to initialize CAEN codes:', error);
+    }
   }
 
-  async _getCompanyCount(filter) {
-    const cacheKey = `${this.CACHE_KEYS.COUNT_PREFIX}${JSON.stringify(filter)}`;
+  async queryCompanies(filter, options) {
+    const cacheKey = `companies_${JSON.stringify(filter)}_${options.page}_${options.limit}`;
+    let result = this.cache.get(cacheKey);
+
+    if (result) {
+      return result;
+    }
 
     try {
-      const cached = await cacheService.get(cacheKey);
-      if (cached !== null) {
-        return parseInt(cached, 10);
+      const { page = 1, limit = 10 } = options;
+      const skip = (page - 1) * limit;
+
+      // Fast query for non-filtered case
+      if (Object.keys(filter).length === 0) {
+        const [companies, totalCount] = await Promise.all([
+          Company.find({})
+            .select({
+              cui: 1,
+              denumire: 1,
+              cod_CAEN: 1,
+              cod_inmatriculare: 1,
+              'adresa_anaf.sediu_social': 1,
+              date_generale: 1,
+            })
+            .sort({ cui: 1 })
+            .skip(skip)
+            .limit(limit)
+            .lean()
+            .hint({ cui: 1 }), // Use the cui index for sorting
+
+          Company.estimatedDocumentCount(), // Much faster than countDocuments for total collection size
+        ]);
+
+        const caenCodes = this.caenCache.get('caen-codes') || {};
+        const transformedResults = companies.map((company) => this._transformCompany(company, caenCodes));
+
+        result = {
+          results: transformedResults,
+          page,
+          limit,
+          totalPages: Math.ceil(totalCount / limit),
+          totalResults: totalCount,
+        };
+      } else {
+        // Use aggregation for filtered queries
+        const pipeline = [
+          {
+            $match: this._buildFilter(filter),
+          },
+          {
+            $facet: {
+              metadata: [{ $count: 'total' }],
+              results: [
+                { $sort: { cui: 1 } },
+                { $skip: skip },
+                { $limit: limit },
+                {
+                  $project: {
+                    cui: 1,
+                    denumire: 1,
+                    cod_CAEN: 1,
+                    cod_inmatriculare: 1,
+                    'adresa_anaf.sediu_social': 1,
+                    date_generale: 1,
+                  },
+                },
+              ],
+            },
+          },
+        ];
+
+        const [aggregationResult] = await Company.aggregate(pipeline).allowDiskUse(true);
+        const totalCount = aggregationResult.metadata[0]?.total || 0;
+        const companies = aggregationResult.results;
+
+        const caenCodes = this.caenCache.get('caen-codes') || {};
+        const transformedResults = companies.map((company) => this._transformCompany(company, caenCodes));
+
+        result = {
+          results: transformedResults,
+          page,
+          limit,
+          totalPages: Math.ceil(totalCount / limit),
+          totalResults: totalCount,
+        };
       }
 
-      const where = this._buildFilter(filter);
-      const count = await prisma.company.count({ where });
-
-      await cacheService.set(cacheKey, count.toString(), this.CACHE_TTL.COUNT);
-      return count;
+      this.cache.set(cacheKey, result);
+      return result;
     } catch (error) {
-      logger.error('Error getting company count:', error);
+      console.error('Error in queryCompanies:', error);
       throw error;
     }
   }
 
   _buildFilter(filter) {
-    const where = {};
+    const query = {};
 
-    if (filter?.cod_CAEN) {
-      where.codCaen = filter.cod_CAEN;
+    if (filter.cod_CAEN) {
+      query.cod_CAEN = filter.cod_CAEN;
     }
 
-    if (filter?.judet) {
-      where.adresaJudet = {
-        contains: filter.judet,
-        mode: 'insensitive',
+    if (filter.judet) {
+      query['adresa_anaf.sediu_social.sdenumire_Judet'] = {
+        $regex: filter.judet,
+        $options: 'i',
       };
     }
 
-    if (filter?.oras) {
-      where.adresaLocalitate = {
-        contains: filter.oras,
-        mode: 'insensitive',
+    if (filter.oras) {
+      query['adresa_anaf.sediu_social.sdenumire_Localitate'] = {
+        $regex: filter.oras,
+        $options: 'i',
       };
     }
 
-    if (filter?.hasWebsite === 'true') {
-      where.dateGenerale = {
-        path: ['website'],
-        not: { equals: '' },
-      };
+    if (filter.hasWebsite === 'true') {
+      query['date_generale.website'] = { $exists: true, $ne: '' };
     }
 
-    if (filter?.hasContact === 'true') {
-      where.OR = [
-        {
-          dateGenerale: {
-            path: ['telefon'],
-            not: { equals: '' },
-          },
-        },
-        {
-          dateGenerale: {
-            path: ['email'],
-            not: { equals: '' },
-          },
-        },
+    if (filter.hasContact === 'true') {
+      query.$or = [
+        { 'date_generale.telefon': { $exists: true, $ne: '' } },
+        { 'date_generale.email': { $exists: true, $ne: '' } },
       ];
     }
 
-    return where;
-  }
-
-  async queryCompanies(filter, options) {
-    const cacheKey = this._buildCacheKey(filter, options);
-
-    try {
-      const cached = await cacheService.get(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      const { page = 1, limit = 10 } = options;
-      const actualLimit = Math.min(limit, this.PAGE_SIZE_LIMIT);
-      const offset = (page - 1) * actualLimit;
-
-      const where = this._buildFilter(filter);
-
-      // Get companies using Prisma's standard query
-      const [companies, totalCount, caenMap] = await Promise.all([
-        prisma.company.findMany({
-          where,
-          skip: offset,
-          take: actualLimit,
-          orderBy: {
-            cui: 'asc',
-          },
-          select: {
-            cui: true,
-            denumire: true,
-            codInmatriculare: true,
-            codCaen: true,
-            stareFirma: true,
-            adresaStrada: true,
-            adresaNumar: true,
-            adresaLocalitate: true,
-            adresaJudet: true,
-            adresaCodPostal: true,
-            adresaTara: true,
-            adresaCompleta: true,
-            dateGenerale: true,
-            adresaAnaf: true,
-          },
-        }),
-        this._getCompanyCount(filter),
-        caenService.getCodeMap(),
-      ]);
-
-      const result = {
-        results: companies.map((company) => this._transformCompany(company, caenMap)),
-        page,
-        limit: actualLimit,
-        totalPages: Math.ceil(totalCount / actualLimit),
-        totalResults: totalCount,
+    if (filter.search) {
+      query.denumire = {
+        $regex: filter.search,
+        $options: 'i',
       };
-
-      await cacheService.set(cacheKey, result, this.CACHE_TTL.COMPANIES_LIST);
-      return result;
-    } catch (error) {
-      logger.error('Error in queryCompanies:', error);
-      throw error;
     }
+
+    return query;
   }
 
-  _transformCompany(company, caenMap = {}) {
-    const dateGenerale = company.dateGenerale || {};
-    const adresaAnaf = company.adresaAnaf?.sediu_social || {};
+  _transformCompany(company, caenCodes) {
+    const anafAddress = company.adresa_anaf?.sediu_social;
+    const dateGenerale = company.date_generale;
+    const caenInfo = caenCodes[company.cod_CAEN];
 
-    const result = {
+    return {
       cui: company.cui,
       nume: company.denumire,
       adresa: {
-        strada: company.adresaStrada || '',
-        numar: company.adresaNumar || '',
-        localitate: company.adresaLocalitate || '',
-        judet: company.adresaJudet || '',
-        cod_postal: company.adresaCodPostal || '',
-        detalii: adresaAnaf.sdetalii_Adresa || '',
-        tara: company.adresaTara || 'România',
+        strada: anafAddress?.sdenumire_Strada || '',
+        numar: anafAddress?.snumar_Strada || '',
+        localitate: anafAddress?.sdenumire_Localitate || '',
+        judet: anafAddress?.sdenumire_Judet || '',
+        cod_postal: anafAddress?.scod_Postal || '',
+        detalii: anafAddress?.sdetalii_Adresa || '',
+        tara: anafAddress?.stara || 'România',
+        cod_judet: anafAddress?.scod_Judet || '',
+        cod_judet_auto: anafAddress?.scod_JudetAuto || '',
+        cod_localitate: anafAddress?.scod_Localitate || '',
       },
-      adresa_completa: company.adresaCompleta || this._formatAddress(company),
+      adresa_completa: this._formatAnafAddress(anafAddress),
       contact: {
-        email: dateGenerale.email || '',
-        telefon: dateGenerale.telefon || '',
-        fax: dateGenerale.fax || '',
-        website: dateGenerale.website || '',
+        email: dateGenerale?.email || '',
+        telefon: dateGenerale?.telefon || '',
+        fax: dateGenerale?.fax || '',
+        website: dateGenerale?.website || '',
       },
-      cod_CAEN: company.codCaen || '',
+      cod_CAEN: company.cod_CAEN || '',
       inregistrare: {
-        numar: company.codInmatriculare || dateGenerale.nrRegCom || '',
-        stare: dateGenerale.stare_inregistrare || '',
-        data: dateGenerale.data_inregistrare || '',
+        numar: company.cod_inmatriculare || dateGenerale?.nrRegCom || '',
+        stare: dateGenerale?.stare_inregistrare || '',
+        data: dateGenerale?.data_inregistrare || '',
+        organ_fiscal: dateGenerale?.organFiscalCompetent || '',
       },
+      tip_firma: {
+        forma_juridica: dateGenerale?.forma_juridica || '',
+        forma_organizare: dateGenerale?.forma_organizare || '',
+        forma_proprietate: dateGenerale?.forma_de_proprietate || '',
+      },
+      caen: caenInfo
+        ? {
+            code: caenInfo.code,
+            name: caenInfo.name,
+            section: `${caenInfo.section_code} - ${caenInfo.section_name}`,
+            division: `${caenInfo.division_code} - ${caenInfo.division_name}`,
+          }
+        : null,
     };
-
-    if (company.codCaen && caenMap?.[company.codCaen]) {
-      result.caen = caenMap[company.codCaen];
-    }
-
-    return result;
   }
 
-  _formatAddress(company) {
+  _formatAnafAddress(anafAddress) {
+    if (!anafAddress) return '';
+
     const parts = [];
-    if (company.adresaStrada) parts.push(company.adresaStrada);
-    if (company.adresaNumar) parts.push(`Nr. ${company.adresaNumar}`);
-    if (company.adresaLocalitate) parts.push(company.adresaLocalitate);
-    if (company.adresaJudet) parts.push(`Jud. ${company.adresaJudet}`);
+    if (anafAddress.sdenumire_Strada?.trim()) parts.push(anafAddress.sdenumire_Strada.trim());
+    if (anafAddress.snumar_Strada?.trim()) parts.push(`Nr. ${anafAddress.snumar_Strada.trim()}`);
+    if (anafAddress.sdenumire_Localitate?.trim()) parts.push(anafAddress.sdenumire_Localitate.trim());
+    if (anafAddress.sdenumire_Judet?.trim()) parts.push(`Jud. ${anafAddress.sdenumire_Judet.trim()}`);
     return parts.join(', ');
   }
 
   async getCompanyByCui(cui) {
-    const cacheKey = `${this.CACHE_KEYS.COMPANY_PREFIX}${cui}`;
+    const cacheKey = `company_${cui}`;
+    let company = this.cache.get(cacheKey);
 
-    try {
-      const cached = await cacheService.get(cacheKey);
-      if (cached) {
-        return cached;
+    if (!company) {
+      company = await Company.findOne({ cui }).lean();
+      if (company) {
+        const caenCodes = this.caenCache.get('caen-codes') || {};
+        company = this._transformCompany(company, caenCodes);
+        this.cache.set(cacheKey, company);
       }
-
-      const [company, caenMap] = await Promise.all([
-        prisma.company.findUnique({
-          where: { cui },
-          select: {
-            cui: true,
-            denumire: true,
-            codInmatriculare: true,
-            codCaen: true,
-            stareFirma: true,
-            adresaStrada: true,
-            adresaNumar: true,
-            adresaLocalitate: true,
-            adresaJudet: true,
-            adresaCodPostal: true,
-            adresaTara: true,
-            adresaCompleta: true,
-            dateGenerale: true,
-            adresaAnaf: true,
-          },
-        }),
-        caenService.getCodeMap(),
-      ]);
-
-      if (!company) {
-        return null;
-      }
-
-      const transformed = this._transformCompany(company, caenMap);
-      await cacheService.set(cacheKey, transformed, this.CACHE_TTL.COMPANY_DETAIL);
-      return transformed;
-    } catch (error) {
-      logger.error('Error in getCompanyByCui:', error);
-      throw error;
     }
+
+    return company;
   }
 
   async searchCompanies(query, options) {
-    const filter = { search: query };
+    const filter = {
+      search: query,
+    };
     return this.queryCompanies(filter, options);
   }
 
   async getStats() {
-    try {
-      const cached = await cacheService.get(this.CACHE_KEYS.STATS);
-      if (cached) {
-        return cached;
-      }
+    const cacheKey = 'company_stats';
+    let stats = this.cache.get(cacheKey);
 
-      const [totalCompanies, activeCompanies, withWebsite, withContact] = await prisma.$transaction([
-        prisma.company.count(),
-        prisma.company.count({
-          where: { stareFirma: '1' },
-        }),
-        prisma.company.count({
-          where: {
-            dateGenerale: {
-              path: ['website'],
-              not: { equals: '' },
-            },
-          },
-        }),
-        prisma.company.count({
-          where: {
-            OR: [
+    if (!stats) {
+      const pipeline = [
+        {
+          $facet: {
+            totalCompanies: [{ $count: 'count' }],
+            activeCompanies: [{ $match: { stare_firma: '1' } }, { $count: 'count' }],
+            withWebsite: [{ $match: { 'date_generale.website': { $exists: true, $ne: '' } } }, { $count: 'count' }],
+            withContact: [
               {
-                dateGenerale: {
-                  path: ['telefon'],
-                  not: { equals: '' },
+                $match: {
+                  $or: [
+                    { 'date_generale.telefon': { $exists: true, $ne: '' } },
+                    { 'date_generale.email': { $exists: true, $ne: '' } },
+                  ],
                 },
               },
-              {
-                dateGenerale: {
-                  path: ['email'],
-                  not: { equals: '' },
-                },
-              },
+              { $count: 'count' },
             ],
           },
-        }),
-      ]);
+        },
+      ];
 
-      const stats = {
-        totalCompanies,
-        activeCompanies,
-        withWebsite,
-        withContact,
+      const [result] = await Company.aggregate(pipeline);
+
+      stats = {
+        totalCompanies: result.totalCompanies[0]?.count || 0,
+        activeCompanies: result.activeCompanies[0]?.count || 0,
+        withWebsite: result.withWebsite[0]?.count || 0,
+        withContact: result.withContact[0]?.count || 0,
       };
 
-      await cacheService.set(this.CACHE_KEYS.STATS, stats, this.CACHE_TTL.STATS);
-      return stats;
-    } catch (error) {
-      logger.error('Error in getStats:', error);
-      throw error;
+      this.cache.set(cacheKey, stats, 3600);
     }
+
+    return stats;
   }
 }
 

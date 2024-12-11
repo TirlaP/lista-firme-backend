@@ -3,13 +3,13 @@ const moment = require('moment');
 const httpStatus = require('http-status');
 const config = require('../config/config');
 const userService = require('./user.service');
-const prisma = require('../config/prisma');
+const { Token } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { tokenTypes } = require('../config/tokens');
 
 /**
  * Generate token
- * @param {number} userId
+ * @param {ObjectId} userId
  * @param {Moment} expires
  * @param {string} type
  * @param {string} [secret]
@@ -28,21 +28,19 @@ const generateToken = (userId, expires, type, secret = config.jwt.secret) => {
 /**
  * Save a token
  * @param {string} token
- * @param {number} userId
+ * @param {ObjectId} userId
  * @param {Moment} expires
  * @param {string} type
  * @param {boolean} [blacklisted]
  * @returns {Promise<Token>}
  */
 const saveToken = async (token, userId, expires, type, blacklisted = false) => {
-  const tokenDoc = await prisma.token.create({
-    data: {
-      token,
-      userId: parseInt(userId),
-      expires: expires.toDate(),
-      type,
-      blacklisted,
-    },
+  const tokenDoc = await Token.create({
+    token,
+    user: userId,
+    expires: expires.toDate(),
+    type,
+    blacklisted,
   });
   return tokenDoc;
 };
@@ -55,14 +53,7 @@ const saveToken = async (token, userId, expires, type, blacklisted = false) => {
  */
 const verifyToken = async (token, type) => {
   const payload = jwt.verify(token, config.jwt.secret);
-  const tokenDoc = await prisma.token.findFirst({
-    where: {
-      token,
-      type,
-      userId: parseInt(payload.sub),
-      blacklisted: false,
-    },
-  });
+  const tokenDoc = await Token.findOne({ token, type, user: payload.sub, blacklisted: false });
   if (!tokenDoc) {
     throw new Error('Token not found');
   }
@@ -122,20 +113,6 @@ const generateVerifyEmailToken = async (user) => {
   return verifyEmailToken;
 };
 
-/**
- * Delete expired tokens
- * @returns {Promise}
- */
-const removeExpiredTokens = async () => {
-  await prisma.token.deleteMany({
-    where: {
-      expires: {
-        lt: new Date(),
-      },
-    },
-  });
-};
-
 module.exports = {
   generateToken,
   saveToken,
@@ -143,5 +120,4 @@ module.exports = {
   generateAuthTokens,
   generateResetPasswordToken,
   generateVerifyEmailToken,
-  removeExpiredTokens,
 };

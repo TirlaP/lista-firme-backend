@@ -1,6 +1,7 @@
 const express = require('express');
 const helmet = require('helmet');
 const xss = require('xss-clean');
+const mongoSanitize = require('express-mongo-sanitize');
 const compression = require('compression');
 const cors = require('cors');
 const passport = require('passport');
@@ -15,81 +16,52 @@ const ApiError = require('./utils/ApiError');
 
 const app = express();
 
-// Initialize middleware
 if (config.env !== 'test') {
   app.use(morgan.successHandler);
   app.use(morgan.errorHandler);
 }
 
-// Set security HTTP headers
+// set security HTTP headers
 app.use(helmet());
 
-// Parse json request body
-app.use(express.json({ limit: '50kb' }));
+// parse json request body
+app.use(express.json());
 
-// Parse urlencoded request body
-app.use(express.urlencoded({ extended: true, limit: '50kb' }));
+// parse urlencoded request body
+app.use(express.urlencoded({ extended: true }));
 
-// Sanitize request data
+// sanitize request data
 app.use(xss());
+app.use(mongoSanitize());
 
-// GZIP compression
+// gzip compression
 app.use(compression());
 
-// Enable CORS
+// enable cors
 app.use(cors());
 app.options('*', cors());
 
-// JWT authentication
+// jwt authentication
 app.use(passport.initialize());
 passport.use('jwt', jwtStrategy);
 
-// Limit repeated failed requests to auth endpoints
+// limit repeated failed requests to auth endpoints
 if (config.env === 'production') {
   app.use('/v1/auth', authLimiter);
 }
 
-// Add response time header - Moving this before routes to avoid header conflicts
-app.use((req, res, next) => {
-  const start = process.hrtime();
-
-  // Only set the header if it hasn't been sent
-  res.on('finish', () => {
-    if (!res.headersSent) {
-      const diff = process.hrtime(start);
-      const time = diff[0] * 1e3 + diff[1] * 1e-6;
-      res.setHeader('Server-Timing', `total;dur=${time}`);
-      res.setHeader('X-Response-Time', `${time}ms`);
-    }
-  });
-
-  next();
-});
-
-// Cache control headers - Moving this before routes
-app.use((req, res, next) => {
-  if (!res.headersSent) {
-    if (req.url.startsWith('/static')) {
-      res.setHeader('Cache-Control', 'public, max-age=31536000');
-    } else {
-      res.setHeader('Cache-Control', 'no-cache');
-    }
-  }
-  next();
-});
-
-// API routes
+// v1 api routes
 app.use('/v1', routes);
 
-// Send back a 404 error for any unknown api request
+// send back a 404 error for any unknown api request
 app.use((req, res, next) => {
   next(new ApiError(httpStatus.NOT_FOUND, 'Not found'));
 });
 
-// Convert error to ApiError, if needed
+// convert error to ApiError, if needed
 app.use(errorConverter);
 
-// Handle error
+// handle error
 app.use(errorHandler);
 
 module.exports = app;

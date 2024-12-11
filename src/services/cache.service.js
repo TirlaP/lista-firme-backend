@@ -1,84 +1,87 @@
-const Redis = require('ioredis');
-const config = require('../config/config');
-const logger = require('../config/logger');
+const NodeCache = require('node-cache');
 
 class CacheService {
   constructor() {
-    this.redis = new Redis({
-      host: config.redis.host,
-      port: config.redis.port,
-      password: config.redis.password || undefined,
-      retryStrategy: (times) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
-      },
-      maxRetriesPerRequest: 3,
+    this.mainCache = new NodeCache({
+      stdTTL: 300, // 5 minutes
+      checkperiod: 60,
+      maxKeys: 10000,
+      deleteOnExpire: true,
     });
 
-    this.redis.on('error', (error) => {
-      logger.error('Redis error:', error);
+    this.prefetchCache = new NodeCache({
+      stdTTL: 600, // 10 minutes
+      checkperiod: 120,
+      maxKeys: 50000,
     });
 
-    this.redis.on('connect', () => {
-      logger.info('Connected to Redis');
-    });
+    // Track ongoing prefetch operations
+    this.prefetchOperations = new Set();
   }
 
-  async get(key) {
+  get(key, usePrefetchCache = false) {
     try {
-      const value = await this.redis.get(key);
-      return value ? JSON.parse(value) : null;
+      const mainResult = this.mainCache.get(key);
+      if (mainResult) return mainResult;
+
+      if (usePrefetchCache) {
+        return this.prefetchCache.get(key);
+      }
+      return null;
     } catch (error) {
-      logger.error('Cache get error:', error);
+      console.error('Cache get error:', error);
       return null;
     }
   }
 
-  async set(key, value, ttl = 300) {
+  set(key, value, ttl = 300, usePrefetchCache = false) {
     try {
-      const serialized = JSON.stringify(value);
-      if (ttl) {
-        await this.redis.setex(key, ttl, serialized);
-      } else {
-        await this.redis.set(key, serialized);
+      const cache = usePrefetchCache ? this.prefetchCache : this.mainCache;
+      return cache.set(key, value, ttl);
+    } catch (error) {
+      console.error('Cache set error:', error);
+    }
+  }
+
+  del(key, usePrefetchCache = false) {
+    try {
+      this.mainCache.del(key);
+      if (usePrefetchCache) {
+        this.prefetchCache.del(key);
       }
-      return true;
     } catch (error) {
-      logger.error('Cache set error:', error);
-      return false;
+      console.error('Cache delete error:', error);
     }
   }
 
-  async del(key) {
-    try {
-      await this.redis.del(key);
-      return true;
-    } catch (error) {
-      logger.error('Cache delete error:', error);
-      return false;
-    }
+  isPrefetching(key) {
+    return this.prefetchOperations.has(key);
   }
 
-  async delPattern(pattern) {
-    try {
-      const keys = await this.redis.keys(pattern);
-      if (keys.length > 0) {
-        await this.redis.del(keys);
-      }
-      return true;
-    } catch (error) {
-      logger.error('Cache delete pattern error:', error);
-      return false;
-    }
+  startPrefetch(key) {
+    this.prefetchOperations.add(key);
   }
 
-  async shutdown() {
-    try {
-      await this.redis.quit();
-      logger.info('Redis connection closed');
-    } catch (error) {
-      logger.error('Redis shutdown error:', error);
+  endPrefetch(key) {
+    this.prefetchOperations.delete(key);
+  }
+
+  promoteFromPrefetch(key) {
+    const value = this.prefetchCache.get(key);
+    if (value) {
+      this.mainCache.set(key, value);
+      this.prefetchCache.del(key);
     }
+    return value;
+  }
+
+  async getOrSet(key, fetchFn, ttl = 300) {
+    const cached = this.get(key);
+    if (cached) return cached;
+
+    const value = await fetchFn();
+    this.set(key, value, ttl);
+    return value;
   }
 }
 
