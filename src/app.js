@@ -34,42 +34,11 @@ app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 app.use(xss());
 
 // GZIP compression
-app.use(
-  compression({
-    filter: (req, res) => {
-      if (req.headers['x-no-compression']) {
-        return false;
-      }
-      return compression.filter(req, res);
-    },
-    level: 6, // Balanced between speed and compression ratio
-  })
-);
+app.use(compression());
 
 // Enable CORS
 app.use(cors());
 app.options('*', cors());
-
-// Add response time header
-app.use((req, res, next) => {
-  res._startTime = Date.now();
-  res.on('finish', () => {
-    const duration = Date.now() - res._startTime;
-    res.setHeader('X-Response-Time', `${duration}ms`);
-  });
-  next();
-});
-
-// Cache control headers
-app.use((req, res, next) => {
-  // Cache static resources longer
-  if (req.url.startsWith('/static')) {
-    res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year
-  } else {
-    res.setHeader('Cache-Control', 'no-cache');
-  }
-  next();
-});
 
 // JWT authentication
 app.use(passport.initialize());
@@ -80,14 +49,40 @@ if (config.env === 'production') {
   app.use('/v1/auth', authLimiter);
 }
 
+// Add response time header - Moving this before routes to avoid header conflicts
+app.use((req, res, next) => {
+  const start = process.hrtime();
+
+  // Only set the header if it hasn't been sent
+  res.on('finish', () => {
+    if (!res.headersSent) {
+      const diff = process.hrtime(start);
+      const time = diff[0] * 1e3 + diff[1] * 1e-6;
+      res.setHeader('Server-Timing', `total;dur=${time}`);
+      res.setHeader('X-Response-Time', `${time}ms`);
+    }
+  });
+
+  next();
+});
+
+// Cache control headers - Moving this before routes
+app.use((req, res, next) => {
+  if (!res.headersSent) {
+    if (req.url.startsWith('/static')) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+    } else {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+  next();
+});
+
 // API routes
 app.use('/v1', routes);
 
 // Send back a 404 error for any unknown api request
 app.use((req, res, next) => {
-  if (res.headersSent) {
-    return;
-  }
   next(new ApiError(httpStatus.NOT_FOUND, 'Not found'));
 });
 
@@ -96,18 +91,5 @@ app.use(errorConverter);
 
 // Handle error
 app.use(errorHandler);
-
-// Add server timing headers
-app.use((req, res, next) => {
-  const start = process.hrtime();
-
-  res.on('finish', () => {
-    const diff = process.hrtime(start);
-    const time = diff[0] * 1e3 + diff[1] * 1e-6;
-    res.setHeader('Server-Timing', `total;dur=${time}`);
-  });
-
-  next();
-});
 
 module.exports = app;
