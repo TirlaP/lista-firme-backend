@@ -9,6 +9,16 @@ const register = {
   }),
 };
 
+// Add new schema for admin registration
+const registerAdmin = {
+  body: Joi.object().keys({
+    email: Joi.string().required().email(),
+    password: Joi.string().required().custom(password),
+    name: Joi.string().required(),
+    adminSecret: Joi.string().required(), // Add a secret key requirement
+  }),
+};
+
 const login = {
   body: Joi.object().keys({
     email: Joi.string().required(),
@@ -51,6 +61,7 @@ const verifyEmail = {
 
 module.exports = {
   register,
+  registerAdmin,
   login,
   logout,
   refreshTokens,

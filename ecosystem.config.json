@@ -8,8 +8,19 @@
       "watch": false,
       "time": true,
       "env": {
-        "NODE_ENV": "production"
-      }
+        "NODE_ENV": "production",
+        "NODE_OPTIONS": "--max-old-space-size=4096"
+      },
+      "env_development": {
+        "NODE_ENV": "development",
+        "NODE_OPTIONS": "--max-old-space-size=4096"
+      },
+      "exec_mode": "cluster",
+      "max_memory_restart": "2G",
+      "node_args": ["--max-old-space-size=4096"],
+      "gc_interval": "100",
+      "max_restarts": 10,
+      "restart_delay": 4000
     }
   ]
 }

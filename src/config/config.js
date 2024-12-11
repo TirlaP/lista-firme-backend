@@ -1,3 +1,4 @@
+// src/config/config.js
 const dotenv = require('dotenv');
 const path = require('path');
 const Joi = require('joi');
@@ -8,7 +9,11 @@ const envVarsSchema = Joi.object()
   .keys({
     NODE_ENV: Joi.string().valid('production', 'development', 'test').required(),
     PORT: Joi.number().default(3000),
-    MONGODB_URL: Joi.string().required().description('Mongo DB url'),
+    POSTGRES_HOST: Joi.string().required().description('PostgreSQL host'),
+    POSTGRES_PORT: Joi.number().default(5432).description('PostgreSQL port'),
+    POSTGRES_USER: Joi.string().required().description('PostgreSQL username'),
+    POSTGRES_PASSWORD: Joi.string().required().description('PostgreSQL password'),
+    POSTGRES_DB: Joi.string().required().description('PostgreSQL database name'),
     JWT_SECRET: Joi.string().required().description('JWT secret key'),
     JWT_ACCESS_EXPIRATION_MINUTES: Joi.number().default(30).description('minutes after which access tokens expire'),
     JWT_REFRESH_EXPIRATION_DAYS: Joi.number().default(30).description('days after which refresh tokens expire'),
@@ -23,6 +28,10 @@ const envVarsSchema = Joi.object()
     SMTP_USERNAME: Joi.string().description('username for email server'),
     SMTP_PASSWORD: Joi.string().description('password for email server'),
     EMAIL_FROM: Joi.string().description('the from field in the emails sent by the app'),
+    ADMIN_SECRET: Joi.string().default('default-dev-secret').description('Secret key for admin registration'),
+    REDIS_HOST: Joi.string().default('localhost'),
+    REDIS_PORT: Joi.number().default(6379),
+    REDIS_PASSWORD: Joi.string().allow('').default(''),
   })
   .unknown();
 
@@ -35,13 +44,12 @@ if (error) {
 module.exports = {
   env: envVars.NODE_ENV,
   port: envVars.PORT,
-  mongoose: {
-    url: envVars.MONGODB_URL + (envVars.NODE_ENV === 'test' ? '-test' : ''),
-    options: {
-      useCreateIndex: true,
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    },
+  postgres: {
+    host: envVars.POSTGRES_HOST,
+    port: envVars.POSTGRES_PORT,
+    user: envVars.POSTGRES_USER,
+    password: envVars.POSTGRES_PASSWORD,
+    database: envVars.POSTGRES_DB,
   },
   jwt: {
     secret: envVars.JWT_SECRET,
@@ -60,5 +68,11 @@ module.exports = {
       },
     },
     from: envVars.EMAIL_FROM,
+  },
+  adminSecret: envVars.ADMIN_SECRET,
+  redis: {
+    host: envVars.REDIS_HOST,
+    port: envVars.REDIS_PORT,
+    password: envVars.REDIS_PASSWORD,
   },
 };

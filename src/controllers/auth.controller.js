@@ -8,6 +8,22 @@ const register = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send({ user, tokens });
 });
 
+const registerAdmin = catchAsync(async (req, res) => {
+  // Check admin secret
+  const { adminSecret, ...userData } = req.body;
+  if (adminSecret !== config.adminSecret) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid admin secret');
+  }
+
+  const user = await userService.createUser({
+    ...userData,
+    role: 'admin',
+    isEmailVerified: true, // Auto-verify admin email
+  });
+  const tokens = await tokenService.generateAuthTokens(user);
+  res.status(httpStatus.CREATED).send({ user, tokens });
+});
+
 const login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
   const user = await authService.loginUserWithEmailAndPassword(email, password);
@@ -49,6 +65,7 @@ const verifyEmail = catchAsync(async (req, res) => {
 
 module.exports = {
   register,
+  registerAdmin,
   login,
   logout,
   refreshTokens,

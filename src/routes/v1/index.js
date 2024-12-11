@@ -1,7 +1,11 @@
+// src/routes/v1/index.js
 const express = require('express');
 const authRoute = require('./auth.route');
 const userRoute = require('./user.route');
+const companyRoute = require('./company.route');
 const docsRoute = require('./docs.route');
+const caenRoute = require('./caen.route');
+const exportRoute = require('./export.route');
 const config = require('../../config/config');
 
 const router = express.Router();
@@ -15,10 +19,21 @@ const defaultRoutes = [
     path: '/users',
     route: userRoute,
   },
+  {
+    path: '/companies',
+    route: companyRoute,
+  },
+  {
+    path: '/caen',
+    route: caenRoute,
+  },
+  {
+    path: '/export',
+    route: exportRoute,
+  },
 ];
 
 const devRoutes = [
-  // routes available only in development mode
   {
     path: '/docs',
     route: docsRoute,

@@ -1,7 +1,6 @@
 const express = require('express');
 const helmet = require('helmet');
 const xss = require('xss-clean');
-const mongoSanitize = require('express-mongo-sanitize');
 const compression = require('compression');
 const cors = require('cors');
 const passport = require('passport');
@@ -16,52 +15,99 @@ const ApiError = require('./utils/ApiError');
 
 const app = express();
 
+// Initialize middleware
 if (config.env !== 'test') {
   app.use(morgan.successHandler);
   app.use(morgan.errorHandler);
 }
 
-// set security HTTP headers
+// Set security HTTP headers
 app.use(helmet());
 
-// parse json request body
-app.use(express.json());
+// Parse json request body
+app.use(express.json({ limit: '50kb' }));
 
-// parse urlencoded request body
-app.use(express.urlencoded({ extended: true }));
+// Parse urlencoded request body
+app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 
-// sanitize request data
+// Sanitize request data
 app.use(xss());
-app.use(mongoSanitize());
 
-// gzip compression
-app.use(compression());
+// GZIP compression
+app.use(
+  compression({
+    filter: (req, res) => {
+      if (req.headers['x-no-compression']) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+    level: 6, // Balanced between speed and compression ratio
+  })
+);
 
-// enable cors
+// Enable CORS
 app.use(cors());
 app.options('*', cors());
 
-// jwt authentication
+// Add response time header
+app.use((req, res, next) => {
+  res._startTime = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - res._startTime;
+    res.setHeader('X-Response-Time', `${duration}ms`);
+  });
+  next();
+});
+
+// Cache control headers
+app.use((req, res, next) => {
+  // Cache static resources longer
+  if (req.url.startsWith('/static')) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year
+  } else {
+    res.setHeader('Cache-Control', 'no-cache');
+  }
+  next();
+});
+
+// JWT authentication
 app.use(passport.initialize());
 passport.use('jwt', jwtStrategy);
 
-// limit repeated failed requests to auth endpoints
+// Limit repeated failed requests to auth endpoints
 if (config.env === 'production') {
   app.use('/v1/auth', authLimiter);
 }
 
-// v1 api routes
+// API routes
 app.use('/v1', routes);
 
-// send back a 404 error for any unknown api request
+// Send back a 404 error for any unknown api request
 app.use((req, res, next) => {
+  if (res.headersSent) {
+    return;
+  }
   next(new ApiError(httpStatus.NOT_FOUND, 'Not found'));
 });
 
-// convert error to ApiError, if needed
+// Convert error to ApiError, if needed
 app.use(errorConverter);
 
-// handle error
+// Handle error
 app.use(errorHandler);
+
+// Add server timing headers
+app.use((req, res, next) => {
+  const start = process.hrtime();
+
+  res.on('finish', () => {
+    const diff = process.hrtime(start);
+    const time = diff[0] * 1e3 + diff[1] * 1e-6;
+    res.setHeader('Server-Timing', `total;dur=${time}`);
+  });
+
+  next();
+});
 
 module.exports = app;
