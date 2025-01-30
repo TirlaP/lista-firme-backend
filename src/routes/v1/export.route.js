@@ -8,4 +8,8 @@ const router = express.Router();
 
 router.route('/companies').get(auth(), validate(exportValidation.exportCompanies), exportController.exportCompanies);
 
+router
+  .route('/companies/latest')
+  .get(auth(), validate(exportValidation.exportLatestCompanies), exportController.exportLatestCompanies);
+
 module.exports = router;

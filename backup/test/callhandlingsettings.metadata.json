@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"d403cfe6fcb5498387921b6c977f1a87","collectionName":"callhandlingsettings","type":"collection"}

@@ -1,4 +1,3 @@
-// src/models/company.model.js
 const mongoose = require('mongoose');
 const { toJSON, paginate } = require('./plugins');
 
@@ -109,25 +108,93 @@ const companySchema = mongoose.Schema(
   }
 );
 
-// Optimize indexes for common queries
-companySchema.index({ cui: 1 });
-companySchema.index({ 'adresa_anaf.sediu_social.sdenumire_Judet': 1, cui: 1 });
-companySchema.index({ 'adresa_anaf.sediu_social.sdenumire_Localitate': 1, cui: 1 });
-companySchema.index({ cod_CAEN: 1, cui: 1 });
+// Optimized indexes for date-based queries and exports
+companySchema.index(
+  {
+    'date_generale.data_inregistrare': -1,
+    cui: 1,
+  },
+  {
+    name: 'date_registration_desc',
+  }
+);
 
-// Compound indexes for common filter combinations
-companySchema.index({
-  'adresa_anaf.sediu_social.sdenumire_Judet': 1,
-  'adresa_anaf.sediu_social.sdenumire_Localitate': 1,
-  cui: 1,
-});
+companySchema.index(
+  {
+    'date_generale.data_inregistrare': 1,
+    cui: 1,
+  },
+  {
+    name: 'date_registration_asc',
+  }
+);
 
-// Optimized indexes for contact filtering
+// Compound index for latest companies with CAEN filter
+companySchema.index(
+  {
+    'date_generale.data_inregistrare': -1,
+    cod_CAEN: 1,
+    cui: 1,
+  },
+  {
+    name: 'latest_companies_caen',
+  }
+);
+
+// Compound index for latest companies with location filter
+companySchema.index(
+  {
+    'date_generale.data_inregistrare': -1,
+    'adresa_anaf.sediu_social.sdenumire_Judet': 1,
+    'adresa_anaf.sediu_social.sdenumire_Localitate': 1,
+    cui: 1,
+  },
+  {
+    name: 'latest_companies_location',
+  }
+);
+
+// Base indexes for individual field queries
+companySchema.index({ cui: 1 }, { name: 'cui_index' });
+companySchema.index(
+  {
+    'adresa_anaf.sediu_social.sdenumire_Judet': 1,
+    cui: 1,
+  },
+  {
+    name: 'judet_index',
+  }
+);
+companySchema.index(
+  {
+    'adresa_anaf.sediu_social.sdenumire_Localitate': 1,
+    cui: 1,
+  },
+  {
+    name: 'localitate_index',
+  }
+);
+companySchema.index({ cod_CAEN: 1, cui: 1 }, { name: 'caen_index' });
+
+// Compound index for location-based queries
+companySchema.index(
+  {
+    'adresa_anaf.sediu_social.sdenumire_Judet': 1,
+    'adresa_anaf.sediu_social.sdenumire_Localitate': 1,
+    cui: 1,
+  },
+  {
+    name: 'location_compound_index',
+  }
+);
+
+// Optimized sparse indexes for contact information
 companySchema.index(
   { 'date_generale.website': 1, cui: 1 },
   {
     partialFilterExpression: { 'date_generale.website': { $exists: true, $ne: '' } },
     sparse: true,
+    name: 'website_index',
   }
 );
 
@@ -136,6 +203,7 @@ companySchema.index(
   {
     partialFilterExpression: { 'date_generale.telefon': { $exists: true, $ne: '' } },
     sparse: true,
+    name: 'phone_index',
   }
 );
 
@@ -144,6 +212,46 @@ companySchema.index(
   {
     partialFilterExpression: { 'date_generale.email': { $exists: true, $ne: '' } },
     sparse: true,
+    name: 'email_index',
+  }
+);
+
+// Index for export optimizations with essential fields
+companySchema.index(
+  {
+    'date_generale.data_inregistrare': -1,
+    cod_CAEN: 1,
+    'adresa_anaf.sediu_social.sdenumire_Judet': 1,
+    cui: 1,
+    'date_generale.website': 1,
+    'date_generale.email': 1,
+    'date_generale.telefon': 1,
+  },
+  {
+    name: 'export_optimization_index',
+    partialFilterExpression: {
+      'date_generale.data_inregistrare': { $exists: true },
+    },
+    sparse: true,
+  }
+);
+
+// Add text index for search functionality
+companySchema.index(
+  {
+    denumire: 'text',
+    cod_CAEN: 'text',
+    'adresa_anaf.sediu_social.sdenumire_Judet': 'text',
+    'adresa_anaf.sediu_social.sdenumire_Localitate': 'text',
+  },
+  {
+    name: 'text_search_index',
+    weights: {
+      denumire: 10,
+      cod_CAEN: 5,
+      'adresa_anaf.sediu_social.sdenumire_Judet': 3,
+      'adresa_anaf.sediu_social.sdenumire_Localitate': 3,
+    },
   }
 );
 

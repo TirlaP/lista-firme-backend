@@ -3,7 +3,7 @@ const ExcelJS = require('exceljs');
 const moment = require('moment');
 const Company = require('./models/company.model');
 
-const MONGODB_URI = 'mongodb://localhost:27017/lista-firme';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 async function connectToDatabase() {
   try {

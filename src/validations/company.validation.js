@@ -1,4 +1,3 @@
-// src/validations/company.validation.js
 const Joi = require('joi');
 
 const getCompanies = {
@@ -12,6 +11,64 @@ const getCompanies = {
     limit: Joi.number().integer().min(1).max(100),
     sortBy: Joi.string().valid('registration_date_desc', 'registration_date_asc'),
   }),
+};
+
+const getLatestCompanies = {
+  query: Joi.object()
+    .keys({
+      timeRange: Joi.string().valid('today', 'yesterday', 'last7days', 'last30days'),
+      customStartDate: Joi.date().iso(),
+      customEndDate: Joi.date().iso().min(Joi.ref('customStartDate')),
+      page: Joi.number().integer().min(1),
+      limit: Joi.number().integer().min(1).max(100),
+    })
+    .custom((value, helpers) => {
+      if (value.customStartDate && !value.customEndDate) {
+        return helpers.error('any.invalid');
+      }
+      if (!value.customStartDate && value.customEndDate) {
+        return helpers.error('any.invalid');
+      }
+      if (value.customStartDate && value.timeRange) {
+        return helpers.error('any.invalid');
+      }
+      if (!value.customStartDate && !value.timeRange) {
+        // Default to last7days if neither is provided
+        value.timeRange = 'last7days';
+      }
+      return value;
+    })
+    .messages({
+      'any.invalid': 'Either provide timeRange OR both customStartDate and customEndDate',
+    }),
+};
+
+const getLatestStats = {
+  query: Joi.object()
+    .keys({
+      timeRange: Joi.string().valid('today', 'yesterday', 'last7days', 'last30days'),
+      customStartDate: Joi.date().iso(),
+      customEndDate: Joi.date().iso().min(Joi.ref('customStartDate')),
+    })
+    .custom((value, helpers) => {
+      if (value.customStartDate && !value.customEndDate) {
+        return helpers.error('any.invalid');
+      }
+      if (!value.customStartDate && value.customEndDate) {
+        return helpers.error('any.invalid');
+      }
+      if (value.customStartDate && value.timeRange) {
+        return helpers.error('any.invalid');
+      }
+      if (!value.customStartDate && !value.timeRange) {
+        // Default to last7days if neither is provided
+        value.timeRange = 'last7days';
+      }
+      return value;
+    })
+    .messages({
+      'any.invalid': 'Either provide timeRange OR both customStartDate and customEndDate',
+    }),
 };
 
 const getCompany = {
@@ -33,4 +90,6 @@ module.exports = {
   getCompanies,
   getCompany,
   searchCompanies,
+  getLatestCompanies,
+  getLatestStats,
 };

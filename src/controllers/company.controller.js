@@ -1,7 +1,6 @@
-// src/controllers/company.controller.js
 const httpStatus = require('http-status');
 const catchAsync = require('../utils/catchAsync');
-const { companyService } = require('../services');
+const { companyService, latestCompaniesService } = require('../services');
 const ApiError = require('../utils/ApiError');
 const pick = require('../utils/pick');
 
@@ -41,22 +40,6 @@ const getCompany = catchAsync(async (req, res) => {
   res.send(company);
 });
 
-const getCompanyByCui = catchAsync(async (req, res) => {
-  const { cui } = req.params;
-
-  if (!cui || isNaN(parseInt(cui, 10))) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid CUI provided');
-  }
-
-  const company = await companyService.getCompanyByCui(parseInt(cui, 10));
-
-  if (!company) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Company not found');
-  }
-
-  res.send(company);
-});
-
 const searchCompanies = catchAsync(async (req, res) => {
   const { q } = req.query;
 
@@ -67,7 +50,7 @@ const searchCompanies = catchAsync(async (req, res) => {
   const options = {
     page: parseInt(req.query.page, 10) || 1,
     limit: Math.min(parseInt(req.query.limit, 10) || 10, 100),
-    sortBy: req.query.sortBy,
+    sortBy: req.query.sortBy || 'registration_date_desc',
   };
 
   const results = await companyService.searchCompanies(q, options);
@@ -81,23 +64,69 @@ const searchCompanies = catchAsync(async (req, res) => {
   res.send(results);
 });
 
-const getCompanyStats = catchAsync(async (req, res) => {
+const getStats = catchAsync(async (req, res) => {
   const stats = await companyService.getStats();
+  res.set('Cache-Control', 'public, max-age=300');
   res.send(stats);
 });
 
-const getStats = catchAsync(async (req, res) => {
-  const stats = await companyService.getStats();
+const getLatestCompanies = catchAsync(async (req, res) => {
+  const options = pick(req.query, ['timeRange', 'customStartDate', 'customEndDate', 'page', 'limit']);
 
-  res.set('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
+  // Parse page and limit
+  options.page = parseInt(options.page, 10) || 1;
+  options.limit = Math.min(parseInt(options.limit, 10) || 10, 100);
+
+  // Convert date strings to Date objects if present
+  if (options.customStartDate) {
+    options.customStartDate = new Date(options.customStartDate);
+  }
+  if (options.customEndDate) {
+    options.customEndDate = new Date(options.customEndDate);
+    // Set end date to end of day
+    options.customEndDate.setHours(23, 59, 59, 999);
+  }
+
+  const result = await latestCompaniesService.getLatestCompanies(options);
+
+  // Set cache headers
+  res.set('Cache-Control', 'public, max-age=60');
+
+  // Set partial results headers if applicable
+  if (result.isPartial) {
+    res.set('X-Results-Type', 'partial');
+    res.set('X-Results-Count', result.totalResults.toString());
+  }
+
+  res.send(result);
+});
+
+const getLatestStats = catchAsync(async (req, res) => {
+  const options = pick(req.query, ['timeRange', 'customStartDate', 'customEndDate']);
+
+  // Convert date strings to Date objects if present
+  if (options.customStartDate) {
+    options.customStartDate = new Date(options.customStartDate);
+  }
+  if (options.customEndDate) {
+    options.customEndDate = new Date(options.customEndDate);
+    // Set end date to end of day
+    options.customEndDate.setHours(23, 59, 59, 999);
+  }
+
+  const stats = await latestCompaniesService.getLatestStats(options);
+
+  // Set cache headers
+  res.set('Cache-Control', 'public, max-age=300');
+
   res.send(stats);
 });
 
 module.exports = {
   getCompanies,
   getCompany,
-  getCompanyByCui,
   searchCompanies,
   getStats,
-  getCompanyStats,
+  getLatestCompanies,
+  getLatestStats,
 };

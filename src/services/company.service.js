@@ -1,4 +1,3 @@
-// src/services/company.service.js
 const { Company } = require('../models');
 const { CAEN } = require('../models');
 const NodeCache = require('node-cache');
@@ -32,7 +31,7 @@ class CompanyService {
   }
 
   async queryCompanies(filter, options) {
-    const cacheKey = `companies_${JSON.stringify(filter)}_${options.page}_${options.limit}`;
+    const cacheKey = `companies_${JSON.stringify(filter)}_${options.page}_${options.limit}_${options.sortBy}`;
     let result = this.cache.get(cacheKey);
 
     if (result) {
@@ -40,8 +39,16 @@ class CompanyService {
     }
 
     try {
-      const { page = 1, limit = 10 } = options;
+      const { page = 1, limit = 10, sortBy = 'registration_date_desc' } = options;
       const skip = (page - 1) * limit;
+
+      // Determine sort configuration
+      let sortConfig = { cui: 1 }; // default sort
+      if (sortBy === 'registration_date_desc') {
+        sortConfig = { 'date_generale.data_inregistrare': -1, cui: 1 };
+      } else if (sortBy === 'registration_date_asc') {
+        sortConfig = { 'date_generale.data_inregistrare': 1, cui: 1 };
+      }
 
       // Fast query for non-filtered case
       if (Object.keys(filter).length === 0) {
@@ -55,13 +62,12 @@ class CompanyService {
               'adresa_anaf.sediu_social': 1,
               date_generale: 1,
             })
-            .sort({ cui: 1 })
+            .sort(sortConfig)
             .skip(skip)
             .limit(limit)
-            .lean()
-            .hint({ cui: 1 }), // Use the cui index for sorting
+            .lean(),
 
-          Company.estimatedDocumentCount(), // Much faster than countDocuments for total collection size
+          Company.estimatedDocumentCount(),
         ]);
 
         const caenCodes = this.caenCache.get('caen-codes') || {};
@@ -84,7 +90,7 @@ class CompanyService {
             $facet: {
               metadata: [{ $count: 'total' }],
               results: [
-                { $sort: { cui: 1 } },
+                { $sort: sortConfig },
                 { $skip: skip },
                 { $limit: limit },
                 {
