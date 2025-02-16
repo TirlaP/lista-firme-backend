@@ -1,19 +1,13 @@
-const { Company } = require('../models');
-const { CAEN } = require('../models');
+// src/services/company.service.js
+const { Company, Location, CAEN } = require('../models');
 const NodeCache = require('node-cache');
 
 class CompanyService {
   constructor() {
-    this.cache = new NodeCache({
-      stdTTL: 300,
-      checkperiod: 60,
-    });
-
-    this.caenCache = new NodeCache({
-      stdTTL: 3600,
-      checkperiod: 120,
-    });
-
+    // Cache for companies (5 minutes) and for CAEN and location data (1 hour)
+    this.cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
+    this.caenCache = new NodeCache({ stdTTL: 3600, checkperiod: 120 });
+    this.locationCache = new NodeCache({ stdTTL: 3600, checkperiod: 120 });
     this.initializeCAENCodes();
   }
 
@@ -30,101 +24,118 @@ class CompanyService {
     }
   }
 
-  async queryCompanies(filter, options) {
-    const cacheKey = `companies_${JSON.stringify(filter)}_${options.page}_${options.limit}_${options.sortBy}`;
-    let result = this.cache.get(cacheKey);
-
-    if (result) {
-      return result;
+  async getCountyNameByCode(code) {
+    let county = this.locationCache.get(`county_${code}`);
+    if (!county) {
+      county = await Location.findOne({ code, type: 'county' }).lean();
+      console.log('Found county:', county);
+      if (county) {
+        this.locationCache.set(`county_${code}`, county);
+      }
     }
+    return county?.name;
+  }
 
+  async getCityNameByCode(code) {
+    let city = this.locationCache.get(`city_${code}`);
+    if (!city) {
+      city = await Location.findOne({
+        code,
+        type: { $in: ['city', 'municipality', 'sector'] },
+      }).lean();
+      console.log('Found city:', city);
+      if (city) {
+        this.locationCache.set(`city_${code}`, city);
+      }
+    }
+    return city?.name;
+  }
+
+  async queryCompanies(filter, options) {
     try {
+      console.log('Received filter:', filter);
+      console.log('Received options:', options);
+
       const { page = 1, limit = 10, sortBy = 'registration_date_desc' } = options;
-      const skip = (page - 1) * limit;
+      const skip = (Math.max(1, page) - 1) * limit;
 
-      // Determine sort configuration
-      let sortConfig = { cui: 1 }; // default sort
-      if (sortBy === 'registration_date_desc') {
-        sortConfig = { 'date_generale.data_inregistrare': -1, cui: 1 };
-      } else if (sortBy === 'registration_date_asc') {
-        sortConfig = { 'date_generale.data_inregistrare': 1, cui: 1 };
+      // If the filter has a "judet" value that is a county code,
+      // look up the county name and then use it in the query.
+      if (filter.judet) {
+        const countyName = await this.getCountyNameByCode(filter.judet);
+        console.log('Converting county code to name:', filter.judet, '->', countyName);
+        if (countyName) {
+          filter.judet = countyName;
+        }
       }
 
-      // Fast query for non-filtered case
-      if (Object.keys(filter).length === 0) {
-        const [companies, totalCount] = await Promise.all([
-          Company.find({})
-            .select({
-              cui: 1,
-              denumire: 1,
-              cod_CAEN: 1,
-              cod_inmatriculare: 1,
-              'adresa_anaf.sediu_social': 1,
-              date_generale: 1,
-            })
-            .sort(sortConfig)
-            .skip(skip)
-            .limit(limit)
-            .lean(),
+      // If the filter has an "oras" value that is a city code,
+      // look up the city name and then use it in the query.
+      if (filter.oras) {
+        const cityName = await this.getCityNameByCode(filter.oras);
+        console.log('Converting city code to name:', filter.oras, '->', cityName);
+        if (cityName) {
+          filter.oras = cityName;
+        }
+      }
 
-          Company.estimatedDocumentCount(),
-        ]);
+      const query = this._buildFilter(filter);
+      console.log('Built MongoDB query:', JSON.stringify(query, null, 2));
 
-        const caenCodes = this.caenCache.get('caen-codes') || {};
-        const transformedResults = companies.map((company) => this._transformCompany(company, caenCodes));
-
-        result = {
-          results: transformedResults,
-          page,
-          limit,
-          totalPages: Math.ceil(totalCount / limit),
-          totalResults: totalCount,
-        };
-      } else {
-        // Use aggregation for filtered queries
-        const pipeline = [
-          {
-            $match: this._buildFilter(filter),
-          },
-          {
-            $facet: {
-              metadata: [{ $count: 'total' }],
-              results: [
-                { $sort: sortConfig },
-                { $skip: skip },
-                { $limit: limit },
-                {
-                  $project: {
-                    cui: 1,
-                    denumire: 1,
-                    cod_CAEN: 1,
-                    cod_inmatriculare: 1,
-                    'adresa_anaf.sediu_social': 1,
-                    date_generale: 1,
-                  },
+      const pipeline = [
+        { $match: query },
+        {
+          $facet: {
+            metadata: [{ $count: 'total' }],
+            results: [
+              {
+                $sort: {
+                  'date_generale.data_inregistrare': sortBy === 'registration_date_desc' ? -1 : 1,
+                  cui: 1,
                 },
-              ],
-            },
+              },
+              { $skip: skip },
+              { $limit: limit },
+              {
+                $project: {
+                  cui: 1,
+                  denumire: 1,
+                  cod_CAEN: 1,
+                  cod_inmatriculare: 1,
+                  adresa: 1,
+                  adresa_anaf: 1,
+                  date_generale: 1,
+                },
+              },
+            ],
           },
-        ];
+        },
+      ];
 
-        const [aggregationResult] = await Company.aggregate(pipeline).allowDiskUse(true);
-        const totalCount = aggregationResult.metadata[0]?.total || 0;
-        const companies = aggregationResult.results;
+      const [aggregationResult] = await Company.aggregate(pipeline).allowDiskUse(true);
+      // console.log('Pipeline result:', JSON.stringify(aggregationResult, null, 2));
 
-        const caenCodes = this.caenCache.get('caen-codes') || {};
-        const transformedResults = companies.map((company) => this._transformCompany(company, caenCodes));
+      const totalCount = aggregationResult.metadata[0]?.total || 0;
+      const companies = aggregationResult.results;
 
-        result = {
-          results: transformedResults,
-          page,
-          limit,
-          totalPages: Math.ceil(totalCount / limit),
-          totalResults: totalCount,
-        };
-      }
+      const caenCodes = this.caenCache.get('caen-codes') || {};
+      const transformedResults = companies.map((company) => this._transformCompany(company, caenCodes));
 
-      this.cache.set(cacheKey, result);
+      const result = {
+        results: transformedResults,
+        page: Math.max(1, page),
+        limit,
+        totalPages: Math.ceil(totalCount / limit),
+        totalResults: totalCount,
+      };
+
+      console.log('Final response:', {
+        totalResults: result.totalResults,
+        resultsCount: result.results.length,
+        page: result.page,
+        totalPages: result.totalPages,
+      });
+
       return result;
     } catch (error) {
       console.error('Error in queryCompanies:', error);
@@ -140,14 +151,17 @@ class CompanyService {
     }
 
     if (filter.judet) {
-      query['adresa_anaf.sediu_social.sdenumire_Judet'] = {
-        $regex: filter.judet,
+      // Use case-insensitive exact match for county name.
+      // IMPORTANT: This now targets adresa.judet based on your actual document structure.
+      query['adresa.judet'] = {
+        $regex: `^${filter.judet}$`,
         $options: 'i',
       };
     }
 
     if (filter.oras) {
-      query['adresa_anaf.sediu_social.sdenumire_Localitate'] = {
+      // Use case-insensitive match for the city/locality.
+      query['adresa.localitate'] = {
         $regex: filter.oras,
         $options: 'i',
       };
@@ -171,47 +185,55 @@ class CompanyService {
       };
     }
 
+    console.log('Built query:', JSON.stringify(query, null, 2));
     return query;
   }
 
   _transformCompany(company, caenCodes) {
-    const anafAddress = company.adresa_anaf?.sediu_social;
-    const dateGenerale = company.date_generale;
+    // Try to get the ANAF address from the nested field.
+    // If it does not exist, fall back to the "adresa" field.
+    let anafAddress = company.adresa_anaf?.sediu_social;
+    if (!anafAddress) {
+      // Fallback to the plain address from the document.
+      anafAddress = company.adresa || {};
+    }
+
+    const dateGenerale = company.date_generale || {};
     const caenInfo = caenCodes[company.cod_CAEN];
 
     return {
       cui: company.cui,
       nume: company.denumire,
       adresa: {
-        strada: anafAddress?.sdenumire_Strada || '',
-        numar: anafAddress?.snumar_Strada || '',
-        localitate: anafAddress?.sdenumire_Localitate || '',
-        judet: anafAddress?.sdenumire_Judet || '',
-        cod_postal: anafAddress?.scod_Postal || '',
-        detalii: anafAddress?.sdetalii_Adresa || '',
-        tara: anafAddress?.stara || 'România',
-        cod_judet: anafAddress?.scod_Judet || '',
-        cod_judet_auto: anafAddress?.scod_JudetAuto || '',
-        cod_localitate: anafAddress?.scod_Localitate || '',
+        strada: anafAddress.sdenumire_Strada || company.adresa?.strada || '',
+        numar: anafAddress.snumar_Strada || company.adresa?.numar || '',
+        localitate: anafAddress.sdenumire_Localitate || company.adresa?.localitate || '',
+        judet: anafAddress.sdenumire_Judet || company.adresa?.judet || '',
+        cod_postal: anafAddress.scod_Postal || company.adresa?.cod_postal || '',
+        detalii: anafAddress.sdetalii_Adresa || '',
+        tara: anafAddress.stara || company.adresa?.tara || 'România',
+        cod_judet: anafAddress.scod_Judet || '',
+        cod_judet_auto: anafAddress.scod_JudetAuto || '',
+        cod_localitate: anafAddress.scod_Localitate || '',
       },
-      adresa_completa: this._formatAnafAddress(anafAddress),
+      adresa_completa: this._formatAnafAddress(anafAddress, company.adresa),
       contact: {
-        email: dateGenerale?.email || '',
-        telefon: dateGenerale?.telefon || '',
-        fax: dateGenerale?.fax || '',
-        website: dateGenerale?.website || '',
+        email: dateGenerale.email || '',
+        telefon: dateGenerale.telefon || '',
+        fax: dateGenerale.fax || '',
+        website: dateGenerale.website || '',
       },
       cod_CAEN: company.cod_CAEN || '',
       inregistrare: {
-        numar: company.cod_inmatriculare || dateGenerale?.nrRegCom || '',
-        stare: dateGenerale?.stare_inregistrare || '',
-        data: dateGenerale?.data_inregistrare || '',
-        organ_fiscal: dateGenerale?.organFiscalCompetent || '',
+        numar: company.cod_inmatriculare || dateGenerale.nrRegCom || '',
+        stare: dateGenerale.stare_inregistrare || '',
+        data: dateGenerale.data_inregistrare || '',
+        organ_fiscal: dateGenerale.organFiscalCompetent || '',
       },
       tip_firma: {
-        forma_juridica: dateGenerale?.forma_juridica || '',
-        forma_organizare: dateGenerale?.forma_organizare || '',
-        forma_proprietate: dateGenerale?.forma_de_proprietate || '',
+        forma_juridica: dateGenerale.forma_juridica || '',
+        forma_organizare: dateGenerale.forma_organizare || '',
+        forma_proprietate: dateGenerale.forma_de_proprietate || '',
       },
       caen: caenInfo
         ? {
@@ -224,14 +246,29 @@ class CompanyService {
     };
   }
 
-  _formatAnafAddress(anafAddress) {
-    if (!anafAddress) return '';
-
+  _formatAnafAddress(anafAddress, fallbackAddress) {
+    // Try formatting using ANAF address fields.
     const parts = [];
-    if (anafAddress.sdenumire_Strada?.trim()) parts.push(anafAddress.sdenumire_Strada.trim());
-    if (anafAddress.snumar_Strada?.trim()) parts.push(`Nr. ${anafAddress.snumar_Strada.trim()}`);
-    if (anafAddress.sdenumire_Localitate?.trim()) parts.push(anafAddress.sdenumire_Localitate.trim());
-    if (anafAddress.sdenumire_Judet?.trim()) parts.push(`Jud. ${anafAddress.sdenumire_Judet.trim()}`);
+    if (anafAddress && anafAddress.sdenumire_Strada && anafAddress.sdenumire_Strada.trim()) {
+      parts.push(anafAddress.sdenumire_Strada.trim());
+    } else if (fallbackAddress && fallbackAddress.strada && fallbackAddress.strada.trim()) {
+      parts.push(fallbackAddress.strada.trim());
+    }
+    if (anafAddress && anafAddress.snumar_Strada && anafAddress.snumar_Strada.trim()) {
+      parts.push(`Nr. ${anafAddress.snumar_Strada.trim()}`);
+    } else if (fallbackAddress && fallbackAddress.numar && fallbackAddress.numar.trim()) {
+      parts.push(`Nr. ${fallbackAddress.numar.trim()}`);
+    }
+    if (anafAddress && anafAddress.sdenumire_Localitate && anafAddress.sdenumire_Localitate.trim()) {
+      parts.push(anafAddress.sdenumire_Localitate.trim());
+    } else if (fallbackAddress && fallbackAddress.localitate && fallbackAddress.localitate.trim()) {
+      parts.push(fallbackAddress.localitate.trim());
+    }
+    if (anafAddress && anafAddress.sdenumire_Judet && anafAddress.sdenumire_Judet.trim()) {
+      parts.push(`Jud. ${anafAddress.sdenumire_Judet.trim()}`);
+    } else if (fallbackAddress && fallbackAddress.judet && fallbackAddress.judet.trim()) {
+      parts.push(`Jud. ${fallbackAddress.judet.trim()}`);
+    }
     return parts.join(', ');
   }
 
@@ -252,9 +289,7 @@ class CompanyService {
   }
 
   async searchCompanies(query, options) {
-    const filter = {
-      search: query,
-    };
+    const filter = { search: query };
     return this.queryCompanies(filter, options);
   }
 

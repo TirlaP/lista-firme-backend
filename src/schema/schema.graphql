@@ -1,0 +1,178 @@
+scalar Long
+
+type Query {
+  companies(input: CompanyFilterInput!): CompanyConnection!
+  company(cui: Int!): Company
+  companyStats: CompanyStats!
+  autocomplete(text: String!): [AutocompleteResult!]!
+}
+
+type CompanyConnection {
+  edges: [CompanyEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type CompanyEdge {
+  node: Company!
+  cursor: String!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
+}
+
+type Company {
+  cui: Int!
+  nume: String!
+  denumire: String!
+  adresa: Address
+  adresa_completa: String
+  contact: Contact
+  cod_CAEN: String
+  inregistrare: Registration
+  tip_firma: CompanyType
+  caen: CAEN
+  date_generale: DateGenerale
+  adresa_anaf: AdresaAnaf
+}
+
+type DateGenerale {
+  cui: Int
+  denumire: String
+  adresa: String
+  nrRegCom: String
+  telefon: String
+  fax: String
+  codPostal: String
+  stare_inregistrare: String
+  data_inregistrare: String
+  statusRO_e_Factura: Boolean
+  organFiscalCompetent: String
+  forma_de_proprietate: String
+  forma_organizare: String
+  forma_juridica: String
+  website: String
+  email: String
+}
+
+type AdresaAnaf {
+  sediu_social: SediuSocial
+  domiciliu_fiscal: DomiciliuFiscal
+}
+
+type SediuSocial {
+  sdenumire_Strada: String
+  snumar_Strada: String
+  sdenumire_Localitate: String
+  scod_Localitate: String
+  sdenumire_Judet: String
+  scod_Judet: String
+  scod_JudetAuto: String
+  stara: String
+  sdetalii_Adresa: String
+  scod_Postal: String
+}
+
+type DomiciliuFiscal {
+  ddenumire_Strada: String
+  dnumar_Strada: String
+  ddenumire_Localitate: String
+  dcod_Localitate: String
+  ddenumire_Judet: String
+  dcod_Judet: String
+  dcod_JudetAuto: String
+  dtara: String
+  ddetalii_Adresa: String
+  dcod_Postal: String
+}
+
+type Address {
+  strada: String
+  numar: String
+  localitate: String
+  judet: String
+  cod_postal: String
+  detalii: String
+  tara: String
+  cod_judet: String
+  cod_judet_auto: String
+  cod_localitate: String
+}
+
+type Contact {
+  email: String
+  telefon: String
+  fax: String
+  website: String
+}
+
+type Registration {
+  numar: String
+  stare: String
+  data: String
+  organ_fiscal: String
+}
+
+type CompanyType {
+  forma_juridica: String
+  forma_organizare: String
+  forma_proprietate: String
+}
+
+type CAEN {
+  code: String!
+  name: String!
+  section: String!
+  division: String!
+}
+
+type CompanyStats {
+  totalCompanies: Int!
+  activeCompanies: Int!
+  withWebsite: Int!
+  withContact: Int!
+}
+
+input CompanyFilterInput {
+  first: Int
+  after: String
+  cod_CAEN: String
+  judet: String
+  oras: String
+  hasWebsite: Boolean
+  hasContact: Boolean
+  sortBy: CompanySortInput
+}
+
+input CompanySortInput {
+  field: CompanySortField!
+  direction: SortDirection!
+}
+
+enum CompanySortField {
+  REGISTRATION_DATE
+  CUI
+  NUME
+}
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+type AutocompleteResult {
+  companyId: String!
+  companyName: String
+  locality: String
+  county: String
+  streetName: String
+  streetNr: String
+  block: String
+  VAT: Boolean
+  staircase: String
+  apartment: String
+  taxId: String
+  status: String
+}

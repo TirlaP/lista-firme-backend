@@ -4,6 +4,8 @@ const userService = require('./user.service');
 const Token = require('../models/token.model');
 const ApiError = require('../utils/ApiError');
 const { tokenTypes } = require('../config/tokens');
+const jwt = require('jsonwebtoken');
+const moment = require('moment');
 
 /**
  * Login with username and password
@@ -37,17 +39,40 @@ const logout = async (refreshToken) => {
  * @param {string} refreshToken
  * @returns {Promise<Object>}
  */
+
 const refreshAuth = async (refreshToken) => {
   try {
+    // First verify the token format and expiration
+    const decoded = jwt.decode(refreshToken);
+    console.log('Decoded refresh token:', decoded);
+
+    if (!decoded) {
+      throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid refresh token format');
+    }
+
+    // Check token expiration
+    if (decoded.exp < moment().unix()) {
+      throw new ApiError(httpStatus.UNAUTHORIZED, 'Refresh token has expired');
+    }
+
+    // Verify the token and get the document
     const refreshTokenDoc = await tokenService.verifyToken(refreshToken, tokenTypes.REFRESH);
+
+    // Get the user
     const user = await userService.getUserById(refreshTokenDoc.user);
     if (!user) {
-      throw new Error();
+      throw new ApiError(httpStatus.UNAUTHORIZED, 'User not found');
     }
-    await refreshTokenDoc.remove();
-    return tokenService.generateAuthTokens(user);
+
+    // Remove the old refresh token
+    await Token.deleteOne({ _id: refreshTokenDoc._id });
+
+    // Generate new tokens
+    const tokens = await tokenService.generateAuthTokens(user);
+    return tokens;
   } catch (error) {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate');
+    console.error('Refresh auth error:', error);
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid refresh token: ' + (error.message || 'Please authenticate'));
   }
 };
 

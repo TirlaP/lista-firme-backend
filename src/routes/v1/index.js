@@ -6,6 +6,8 @@ const companyRoute = require('./company.route');
 const docsRoute = require('./docs.route');
 const caenRoute = require('./caen.route');
 const exportRoute = require('./export.route');
+const subscriptionRoute = require('./subscription.route');
+const locationRoute = require('./location.route');
 const config = require('../../config/config');
 
 const router = express.Router();
@@ -30,6 +32,14 @@ const defaultRoutes = [
   {
     path: '/export',
     route: exportRoute,
+  },
+  {
+    path: '/subscriptions',
+    route: subscriptionRoute,
+  },
+  {
+    path: '/locations',
+    route: locationRoute,
   },
 ];
 

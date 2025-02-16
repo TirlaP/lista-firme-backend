@@ -5,11 +5,11 @@ const getCompanies = {
     cod_CAEN: Joi.string(),
     judet: Joi.string(),
     oras: Joi.string(),
-    hasWebsite: Joi.string().valid('true', 'false'),
-    hasContact: Joi.string().valid('true', 'false'),
-    page: Joi.number().integer().min(1),
-    limit: Joi.number().integer().min(1).max(100),
-    sortBy: Joi.string().valid('registration_date_desc', 'registration_date_asc'),
+    hasWebsite: Joi.string().valid('true', 'false', ''),
+    hasContact: Joi.string().valid('true', 'false', ''),
+    page: Joi.number().integer().min(1).required(),
+    limit: Joi.number().integer().min(1).max(100).default(10),
+    sortBy: Joi.string().valid('registration_date_desc', 'registration_date_asc').default('registration_date_desc'),
   }),
 };
 
@@ -19,8 +19,8 @@ const getLatestCompanies = {
       timeRange: Joi.string().valid('today', 'yesterday', 'last7days', 'last30days'),
       customStartDate: Joi.date().iso(),
       customEndDate: Joi.date().iso().min(Joi.ref('customStartDate')),
-      page: Joi.number().integer().min(1),
-      limit: Joi.number().integer().min(1).max(100),
+      page: Joi.number().integer().min(1).required(),
+      limit: Joi.number().integer().min(1).max(100).default(10),
     })
     .custom((value, helpers) => {
       if (value.customStartDate && !value.customEndDate) {
@@ -33,7 +33,6 @@ const getLatestCompanies = {
         return helpers.error('any.invalid');
       }
       if (!value.customStartDate && !value.timeRange) {
-        // Default to last7days if neither is provided
         value.timeRange = 'last7days';
       }
       return value;
@@ -61,7 +60,6 @@ const getLatestStats = {
         return helpers.error('any.invalid');
       }
       if (!value.customStartDate && !value.timeRange) {
-        // Default to last7days if neither is provided
         value.timeRange = 'last7days';
       }
       return value;
@@ -80,9 +78,9 @@ const getCompany = {
 const searchCompanies = {
   query: Joi.object().keys({
     q: Joi.string().required().min(2),
-    sortBy: Joi.string(),
-    limit: Joi.number().integer(),
-    page: Joi.number().integer(),
+    sortBy: Joi.string().valid('registration_date_desc', 'registration_date_asc').default('registration_date_desc'),
+    limit: Joi.number().integer().min(1).max(100).default(10),
+    page: Joi.number().integer().min(1).required(),
   }),
 };
 
