@@ -17,4 +17,4 @@ jobs:
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
           local-dir: ./
-          server-dir: /firme.mediadesignro.ro/backend/
+          server-dir: /api-firme.mediadesignro.ro/backend/
