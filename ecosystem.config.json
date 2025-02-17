@@ -9,11 +9,16 @@
       "time": true,
       "env": {
         "NODE_ENV": "production",
-        "NODE_OPTIONS": "--max-old-space-size=4096"
+        "NODE_OPTIONS": "--max-old-space-size=4096",
+        "PORT": 3000,
+        "MONGODB_URL": "mongodb+srv://tirlapetru:Maracas123@ecommerce-platform.ea4mo.mongodb.net/",
+        "ADMIN_SECRET": "your-very-secure-secret-here"
       },
       "env_development": {
         "NODE_ENV": "development",
-        "NODE_OPTIONS": "--max-old-space-size=4096"
+        "NODE_OPTIONS": "--max-old-space-size=4096",
+        "PORT": 3000,
+        "MONGODB_URL": "mongodb+srv://tirlapetru:Maracas123@ecommerce-platform.ea4mo.mongodb.net/"
       },
       "exec_mode": "cluster",
       "max_memory_restart": "2G",
