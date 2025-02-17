@@ -17,3 +17,11 @@
 2025-02-17T09:26:31.561Z info: Connected to MongoDB
 2025-02-17T09:26:31.564Z info: Listening to port 3000
 2025-02-17T09:26:32.386Z info: Connected to email server
+2025-02-17T09:49:55.206Z info: Apollo Server initialized successfully
+2025-02-17T09:49:55.882Z info: Connected to email server
+2025-02-17T09:49:56.135Z info: Connected to MongoDB
+2025-02-17T09:49:56.138Z info: Listening to port 3000
+2025-02-17T09:58:24.566Z info: Apollo Server initialized successfully
+2025-02-17T09:58:25.330Z info: Connected to email server
+2025-02-17T09:58:25.643Z info: Connected to MongoDB
+2025-02-17T09:58:25.648Z info: Listening to port 3000

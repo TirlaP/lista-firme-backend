@@ -8,7 +8,7 @@ const MONGODB_URI = 'mongodb://localhost:27017/lista-firme';
 
 async function connectToDatabase() {
   try {
-    await mongoose.connect(MONGODB_URI, {
+    await mongoose.connect('mongodb+srv://tirlapetru:Maracas123@ecommerce-platform.ea4mo.mongodb.net/', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
