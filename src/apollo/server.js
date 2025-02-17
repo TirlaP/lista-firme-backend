@@ -10,6 +10,7 @@ const config = require('../config/config');
 const httpStatus = require('http-status');
 const ApiError = require('../utils/ApiError');
 const { tokenTypes } = require('../config/tokens');
+const logger = require('../config/logger');
 
 // Read schema from file
 const schemaPath = path.join(__dirname, '../schema/schema.graphql');
@@ -34,7 +35,7 @@ const createApolloServer = async (app) => {
     introspection: true,
     cache: 'bounded',
     formatError: (error) => {
-      console.error('GraphQL Error:', error);
+      logger.error('GraphQL Error:', error);
       return {
         message: error.message,
         code: error.extensions?.code || 'INTERNAL_SERVER_ERROR',

@@ -3,6 +3,7 @@ const ApiError = require('../utils/ApiError');
 const { SubscriptionPlan, UserSubscription, User } = require('../models');
 const { Netopia } = require('netopia-card');
 const paymentService = require('./payment.service');
+const logger = require('../config/logger');
 
 class SubscriptionService {
   // constructor() {
@@ -152,7 +153,7 @@ class SubscriptionService {
 
       return paymentResponse;
     } catch (error) {
-      console.error('Full payment error:', error); // Add detailed logging
+      logger.error('Full payment error:', error); // Add detailed logging
       throw new ApiError(httpStatus.BAD_REQUEST, `Payment failed: ${error.message}`);
     }
   }

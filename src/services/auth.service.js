@@ -6,6 +6,7 @@ const ApiError = require('../utils/ApiError');
 const { tokenTypes } = require('../config/tokens');
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
+const logger = require('../config/logger');
 
 /**
  * Login with username and password
@@ -44,7 +45,7 @@ const refreshAuth = async (refreshToken) => {
   try {
     // First verify the token format and expiration
     const decoded = jwt.decode(refreshToken);
-    console.log('Decoded refresh token:', decoded);
+    logger.info('Decoded refresh token:', decoded);
 
     if (!decoded) {
       throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid refresh token format');
@@ -71,7 +72,7 @@ const refreshAuth = async (refreshToken) => {
     const tokens = await tokenService.generateAuthTokens(user);
     return tokens;
   } catch (error) {
-    console.error('Refresh auth error:', error);
+    logger.error('Refresh auth error:', error);
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid refresh token: ' + (error.message || 'Please authenticate'));
   }
 };

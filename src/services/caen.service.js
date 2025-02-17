@@ -1,3 +1,4 @@
+const logger = require('../config/logger');
 const { CAEN } = require('../models');
 const cacheService = require('./cache.service');
 
@@ -27,7 +28,7 @@ class CAENService {
 
       // Convert query to lowercase for case-insensitive search
       const searchTerm = query.toLowerCase();
-      console.log('Searching for:', searchTerm);
+      logger.info('Searching for:', searchTerm);
 
       const searchQuery = {
         $or: [
@@ -43,7 +44,7 @@ class CAENService {
         .sort({ code: 1 })
         .lean();
 
-      console.log(`Found ${results.length} results`);
+      logger.info(`Found ${results.length} results`);
 
       const formattedResults = results.map((caen) => ({
         value: caen.code,
@@ -59,7 +60,7 @@ class CAENService {
 
       return formattedResults;
     } catch (error) {
-      console.error('Error in searchCAENCodes:', error);
+      logger.error('Error in searchCAENCodes:', error);
       throw error;
     }
   }
@@ -83,7 +84,7 @@ class CAENService {
 
       return result;
     } catch (error) {
-      console.error('Error in getCAENByCode:', error);
+      logger.error('Error in getCAENByCode:', error);
       throw error;
     }
   }
@@ -105,7 +106,7 @@ class CAENService {
 
       return results;
     } catch (error) {
-      console.error('Error in getAllCAENCodes:', error);
+      logger.error('Error in getAllCAENCodes:', error);
       throw error;
     }
   }
@@ -123,7 +124,7 @@ class CAENService {
         await cacheService.del(key);
       }
     } catch (error) {
-      console.error('Error clearing CAEN cache:', error);
+      logger.error('Error clearing CAEN cache:', error);
       throw error;
     }
   }

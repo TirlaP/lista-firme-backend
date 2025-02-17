@@ -3,6 +3,7 @@ const ApiError = require('../../utils/ApiError');
 const httpStatus = require('http-status');
 const BaseExportService = require('./baseExport.service');
 const { Company } = require('../../models');
+const logger = require('../../config/logger');
 
 class CSVExportService extends BaseExportService {
   constructor() {
@@ -20,10 +21,10 @@ class CSVExportService extends BaseExportService {
       const query = this._buildFilter(filter);
       const sort = this._buildSort(filter.sortBy);
 
-      console.log('Export query:', JSON.stringify(query, null, 2));
+      logger.info('Export query:', JSON.stringify(query, null, 2));
 
       const count = await Company.countDocuments(query);
-      console.log('Documents to export:', count);
+      logger.info('Documents to export:', count);
 
       this._setHeaders(res, format);
 
@@ -31,9 +32,9 @@ class CSVExportService extends BaseExportService {
       await this._processBatches(cursor, res);
 
       res.end();
-      console.log('CSV export completed successfully');
+      logger.info('CSV export completed successfully');
     } catch (error) {
-      console.error('CSV export failed:', error);
+      logger.error('CSV export failed:', error);
       if (!res.headersSent) {
         throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Export processing failed');
       }
@@ -42,7 +43,7 @@ class CSVExportService extends BaseExportService {
         try {
           await cursor.close();
         } catch (error) {
-          console.error('Error closing cursor:', error);
+          logger.error('Error closing cursor:', error);
         }
       }
     }
@@ -76,9 +77,9 @@ class CSVExportService extends BaseExportService {
       await this._processBatches(cursor, res);
 
       res.end();
-      console.log('Latest CSV export completed successfully');
+      logger.info('Latest CSV export completed successfully');
     } catch (error) {
-      console.error('Latest CSV export failed:', error);
+      logger.error('Latest CSV export failed:', error);
       if (!res.headersSent) {
         throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Export processing failed');
       }
@@ -87,7 +88,7 @@ class CSVExportService extends BaseExportService {
         try {
           await cursor.close();
         } catch (error) {
-          console.error('Error closing cursor:', error);
+          logger.error('Error closing cursor:', error);
         }
       }
     }
@@ -110,13 +111,13 @@ class CSVExportService extends BaseExportService {
         await this._writeBatch(batch, res, isFirstBatch);
         batch = [];
         isFirstBatch = false;
-        console.log(`Processed ${processedCount} documents`);
+        logger.info(`Processed ${processedCount} documents`);
       }
     }
 
     if (batch.length > 0) {
       await this._writeBatch(batch, res, isFirstBatch);
-      console.log(`Processed ${processedCount} documents (final batch)`);
+      logger.info(`Processed ${processedCount} documents (final batch)`);
     }
   }
 

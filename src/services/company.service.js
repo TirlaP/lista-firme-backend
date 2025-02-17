@@ -1,4 +1,5 @@
 // src/services/company.service.js
+const logger = require('../config/logger');
 const { Company, Location, CAEN } = require('../models');
 const NodeCache = require('node-cache');
 
@@ -20,7 +21,7 @@ class CompanyService {
       });
       this.caenCache.set('caen-codes', caenMap);
     } catch (error) {
-      console.error('Failed to initialize CAEN codes:', error);
+      logger.error('Failed to initialize CAEN codes:', error);
     }
   }
 
@@ -28,7 +29,7 @@ class CompanyService {
     let county = this.locationCache.get(`county_${code}`);
     if (!county) {
       county = await Location.findOne({ code, type: 'county' }).lean();
-      console.log('Found county:', county);
+      logger.info('Found county:', county);
       if (county) {
         this.locationCache.set(`county_${code}`, county);
       }
@@ -43,7 +44,7 @@ class CompanyService {
         code,
         type: { $in: ['city', 'municipality', 'sector'] },
       }).lean();
-      console.log('Found city:', city);
+      logger.info('Found city:', city);
       if (city) {
         this.locationCache.set(`city_${code}`, city);
       }
@@ -53,8 +54,8 @@ class CompanyService {
 
   async queryCompanies(filter, options) {
     try {
-      console.log('Received filter:', filter);
-      console.log('Received options:', options);
+      logger.info('Received filter:', filter);
+      logger.info('Received options:', options);
 
       const { page = 1, limit = 10, sortBy = 'registration_date_desc' } = options;
       const skip = (Math.max(1, page) - 1) * limit;
@@ -63,7 +64,7 @@ class CompanyService {
       // look up the county name and then use it in the query.
       if (filter.judet) {
         const countyName = await this.getCountyNameByCode(filter.judet);
-        console.log('Converting county code to name:', filter.judet, '->', countyName);
+        logger.info('Converting county code to name:', filter.judet, '->', countyName);
         if (countyName) {
           filter.judet = countyName;
         }
@@ -73,14 +74,14 @@ class CompanyService {
       // look up the city name and then use it in the query.
       if (filter.oras) {
         const cityName = await this.getCityNameByCode(filter.oras);
-        console.log('Converting city code to name:', filter.oras, '->', cityName);
+        logger.info('Converting city code to name:', filter.oras, '->', cityName);
         if (cityName) {
           filter.oras = cityName;
         }
       }
 
       const query = this._buildFilter(filter);
-      console.log('Built MongoDB query:', JSON.stringify(query, null, 2));
+      logger.info('Built MongoDB query:', JSON.stringify(query, null, 2));
 
       const pipeline = [
         { $match: query },
@@ -113,7 +114,7 @@ class CompanyService {
       ];
 
       const [aggregationResult] = await Company.aggregate(pipeline).allowDiskUse(true);
-      // console.log('Pipeline result:', JSON.stringify(aggregationResult, null, 2));
+      // logger.info('Pipeline result:', JSON.stringify(aggregationResult, null, 2));
 
       const totalCount = aggregationResult.metadata[0]?.total || 0;
       const companies = aggregationResult.results;
@@ -129,7 +130,7 @@ class CompanyService {
         totalResults: totalCount,
       };
 
-      console.log('Final response:', {
+      logger.info('Final response:', {
         totalResults: result.totalResults,
         resultsCount: result.results.length,
         page: result.page,
@@ -138,7 +139,7 @@ class CompanyService {
 
       return result;
     } catch (error) {
-      console.error('Error in queryCompanies:', error);
+      logger.error('Error in queryCompanies:', error);
       throw error;
     }
   }
@@ -185,7 +186,7 @@ class CompanyService {
       };
     }
 
-    console.log('Built query:', JSON.stringify(query, null, 2));
+    logger.info('Built query:', JSON.stringify(query, null, 2));
     return query;
   }
 

@@ -3,6 +3,7 @@ import { ApolloClient, InMemoryCache, createHttpLink, from } from '@apollo/clien
 import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
 import { toast } from 'react-toastify';
+import logger from '../config/logger';
 
 const httpLink = createHttpLink({
   uri: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1/graphql`,
@@ -21,7 +22,7 @@ const authLink = setContext((_, { headers }) => {
 const errorLink = onError(({ graphQLErrors, networkError }) => {
   if (graphQLErrors) {
     graphQLErrors.forEach(({ message, extensions }) => {
-      console.error(`[GraphQL error]: Message: ${message}, Code: ${extensions?.code}`);
+      logger.error(`[GraphQL error]: Message: ${message}, Code: ${extensions?.code}`);
 
       if (extensions?.code === 'UNAUTHENTICATED' || message.includes('authenticate')) {
         // Handle authentication errors
@@ -36,7 +37,7 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
   }
 
   if (networkError) {
-    console.error(`[Network error]: ${networkError}`);
+    logger.error(`[Network error]: ${networkError}`);
     toast.error('Network error occurred. Please try again.');
   }
 });

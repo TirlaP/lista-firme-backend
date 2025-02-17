@@ -1,3 +1,4 @@
+const logger = require('./src/config/logger');
 const { Location } = require('./src/models');
 
 const counties = [
@@ -667,7 +668,7 @@ async function seedLocations() {
   try {
     // Clear existing locations
     await Location.deleteMany({});
-    console.log('Cleared existing locations');
+    logger.info('Cleared existing locations');
 
     // Insert counties and their cities
     for (const county of counties) {
@@ -680,7 +681,7 @@ async function seedLocations() {
         aliases: county.aliases,
         isActive: true,
       });
-      console.log(`Created county: ${county.name}`);
+      logger.info(`Created county: ${county.name}`);
 
       // Create cities for this county
       for (const city of county.cities) {
@@ -694,12 +695,12 @@ async function seedLocations() {
           isActive: true,
         });
       }
-      console.log(`Created ${county.cities.length} cities for ${county.name}`);
+      logger.info(`Created ${county.cities.length} cities for ${county.name}`);
     }
 
-    console.log('Location seeding completed successfully');
+    logger.info('Location seeding completed successfully');
   } catch (error) {
-    console.error('Error seeding locations:', error);
+    logger.error('Error seeding locations:', error);
     throw error;
   }
 }

@@ -3,6 +3,7 @@ const catchAsync = require('../utils/catchAsync');
 const { csvExportService, xlsExportService } = require('../services');
 const ApiError = require('../utils/ApiError');
 const pick = require('../utils/pick');
+const logger = require('../config/logger');
 
 const getExportService = (format) => {
   return format === 'xlsx' ? xlsExportService : csvExportService;
@@ -47,7 +48,7 @@ const exportCompanies = catchAsync(async (req, res) => {
 
     await exportService.exportCompanies(exportFilter, res, format);
   } catch (error) {
-    console.error('Export error:', error);
+    logger.error('Export error:', error);
     if (!res.headersSent) {
       throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Export failed');
     }
@@ -91,7 +92,7 @@ const exportLatestCompanies = catchAsync(async (req, res) => {
 
     await exportService.exportLatestCompanies(exportFilter, res, format);
   } catch (error) {
-    console.error('Latest export error:', error);
+    logger.error('Latest export error:', error);
     if (!res.headersSent) {
       throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Export failed');
     }

@@ -1,3 +1,4 @@
+const logger = require('../../config/logger');
 const { Company, CAEN } = require('../../models');
 const ApiError = require('../../utils/ApiError');
 const httpStatus = require('http-status');
@@ -44,7 +45,7 @@ class BaseExportService {
       this.caenCache.set(code, name);
       return name;
     } catch (error) {
-      console.error(`Error fetching CAEN name for code ${code}:`, error);
+      logger.error(`Error fetching CAEN name for code ${code}:`, error);
       return '';
     }
   }

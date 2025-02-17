@@ -2,6 +2,7 @@ const { Company, CAEN } = require('../models');
 const { Parser } = require('json2csv');
 const ApiError = require('../utils/ApiError');
 const httpStatus = require('http-status');
+const logger = require('../config/logger');
 
 class ExportService {
   constructor() {
@@ -45,7 +46,7 @@ class ExportService {
       this.caenCache.set(code, name);
       return name;
     } catch (error) {
-      console.error(`Error fetching CAEN name for code ${code}:`, error);
+      logger.error(`Error fetching CAEN name for code ${code}:`, error);
       return '';
     }
   }
@@ -60,10 +61,10 @@ class ExportService {
       const query = this._buildFilter(filter);
       const sort = this._buildSort(filter.sortBy);
 
-      console.log('Export query:', JSON.stringify(query, null, 2));
+      logger.info('Export query:', JSON.stringify(query, null, 2));
 
       const count = await Company.countDocuments(query);
-      console.log('Documents to export:', count);
+      logger.info('Documents to export:', count);
 
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename=companies-export-${Date.now()}.csv`);
@@ -97,7 +98,7 @@ class ExportService {
           res.write(csv);
           batch = [];
           isFirstBatch = false;
-          console.log(`Processed ${processedCount} documents`);
+          logger.info(`Processed ${processedCount} documents`);
         }
       }
 
@@ -107,13 +108,13 @@ class ExportService {
           res.write('\n');
         }
         res.write(csv);
-        console.log(`Processed ${processedCount} documents (final batch)`);
+        logger.info(`Processed ${processedCount} documents (final batch)`);
       }
 
       res.end();
-      console.log('Export completed successfully');
+      logger.info('Export completed successfully');
     } catch (error) {
-      console.error('Export failed:', error);
+      logger.error('Export failed:', error);
       if (!res.headersSent) {
         throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Export processing failed');
       }
@@ -122,7 +123,7 @@ class ExportService {
         try {
           await cursor.close();
         } catch (error) {
-          console.error('Error closing cursor:', error);
+          logger.error('Error closing cursor:', error);
         }
       }
     }

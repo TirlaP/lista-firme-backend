@@ -6,6 +6,7 @@ const userService = require('./user.service');
 const { Token } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { tokenTypes } = require('../config/tokens');
+const logger = require('../config/logger');
 
 /**
  * Generate token
@@ -53,10 +54,10 @@ const saveToken = async (token, userId, expires, type, blacklisted = false) => {
  */
 const verifyToken = async (token, type) => {
   try {
-    console.log(`Verifying ${type} token`);
+    logger.info(`Verifying ${type} token`);
 
     const payload = jwt.verify(token, config.jwt.secret);
-    console.log('Token payload after verification:', payload);
+    logger.info('Token payload after verification:', payload);
 
     const tokenDoc = await Token.findOne({
       token,
@@ -65,16 +66,16 @@ const verifyToken = async (token, type) => {
       blacklisted: false,
     });
 
-    console.log('Token document found:', tokenDoc ? 'Yes' : 'No');
+    logger.info('Token document found:', tokenDoc ? 'Yes' : 'No');
 
     if (!tokenDoc) {
-      console.log('Token not found in database');
+      logger.info('Token not found in database');
       throw new Error('Token not found');
     }
 
     return tokenDoc;
   } catch (error) {
-    console.error('Token verification failed:', error.message);
+    logger.error('Token verification failed:', error.message);
     throw error;
   }
 };

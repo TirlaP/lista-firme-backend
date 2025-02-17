@@ -3,6 +3,7 @@ const { parentPort } = require('worker_threads');
 const mongoose = require('mongoose');
 const config = require('../../config/config');
 const { Company } = require('../../models');
+const logger = require('../../config/logger');
 
 let connected = false;
 let processing = false;
@@ -13,7 +14,7 @@ async function connectDB() {
       await mongoose.connect(config.mongoose.url, config.mongoose.options);
       connected = true;
     } catch (error) {
-      console.error('Worker DB connection error:', error);
+      logger.error('Worker DB connection error:', error);
       throw error;
     }
   }
@@ -191,7 +192,7 @@ process.on('SIGTERM', async () => {
     try {
       await mongoose.connection.close();
     } catch (error) {
-      console.error('Error closing worker DB connection:', error);
+      logger.error('Error closing worker DB connection:', error);
     }
   }
   process.exit(0);
@@ -199,7 +200,7 @@ process.on('SIGTERM', async () => {
 
 // Handle uncaught errors
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception in worker:', error);
+  logger.error('Uncaught exception in worker:', error);
   parentPort.postMessage({
     type: 'ERROR',
     data: { error: error.message },
@@ -207,7 +208,7 @@ process.on('uncaughtException', (error) => {
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled rejection in worker:', reason);
+  logger.error('Unhandled rejection in worker:', reason);
   parentPort.postMessage({
     type: 'ERROR',
     data: { error: reason?.message || 'Unknown error' },

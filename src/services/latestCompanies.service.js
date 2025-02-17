@@ -1,3 +1,4 @@
+const logger = require('../config/logger');
 const { Company } = require('../models');
 const NodeCache = require('node-cache');
 
@@ -90,7 +91,7 @@ class LatestCompaniesService {
       this.cache.set(cacheKey, result);
       return result;
     } catch (error) {
-      console.error('Error in getLatestCompanies:', error);
+      logger.error('Error in getLatestCompanies:', error);
       throw error;
     }
   }
@@ -180,7 +181,7 @@ class LatestCompaniesService {
       this.cache.set(cacheKey, stats, 1800);
       return stats;
     } catch (error) {
-      console.error('Error in getLatestStats:', error);
+      logger.error('Error in getLatestStats:', error);
       throw error;
     }
   }

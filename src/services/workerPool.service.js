@@ -2,6 +2,7 @@
 const { Worker } = require('worker_threads');
 const path = require('path');
 const EventEmitter = require('events');
+const logger = require('../config/logger');
 
 class WorkerPool extends EventEmitter {
   constructor(size = 4) {
@@ -38,7 +39,7 @@ class WorkerPool extends EventEmitter {
     });
 
     worker.on('error', (error) => {
-      console.error(`Worker ${id} error:`, error);
+      logger.error(`Worker ${id} error:`, error);
       this.workers.get(id).busy = false;
       this.processNextTask();
     });

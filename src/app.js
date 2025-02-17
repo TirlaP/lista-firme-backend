@@ -15,6 +15,7 @@ const routes = require('./routes/v1');
 const { errorConverter, errorHandler } = require('./middlewares/error');
 const ApiError = require('./utils/ApiError');
 const createApolloServer = require('./apollo/server');
+const logger = require('./config/logger');
 
 const app = express();
 
@@ -24,12 +25,7 @@ if (config.env !== 'test') {
 }
 
 // set security HTTP headers
-app.use(
-  helmet({
-    crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: false,
-  })
-);
+app.use(helmet());
 
 // parse json request body
 app.use(express.json());
@@ -57,33 +53,35 @@ if (config.env === 'production') {
   app.use('/v1/auth', authLimiter);
 }
 
-// Initialize Apollo Server first
-const initializeServers = async () => {
+// v1 api routes
+app.use('/v1', routes);
+
+// Initialize Apollo Server before the 404 handler
+const initApollo = async () => {
   try {
-    // Initialize Apollo Server
     await createApolloServer(app);
-    console.log('Apollo Server initialized successfully');
-
-    // Then add REST routes
-    app.use('/v1', routes);
-
-    // Finally add error handlers
-    app.use((req, res, next) => {
-      next(new ApiError(httpStatus.NOT_FOUND, 'Not found'));
-    });
-
-    app.use(errorConverter);
-    app.use(errorHandler);
+    logger.info('Apollo Server initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize servers:', error);
+    logger.error('Failed to initialize Apollo Server:', error);
     throw error;
   }
 };
 
-// Start the initialization
-initializeServers().catch((error) => {
-  console.error('Failed to start servers:', error);
+// Initialize Apollo Server before setting up error handlers
+initApollo().catch((error) => {
+  logger.error('Failed to start Apollo Server:', error);
   process.exit(1);
 });
+
+// send back a 404 error for any unknown api request
+app.use((req, res, next) => {
+  next(new ApiError(httpStatus.NOT_FOUND, 'Not found'));
+});
+
+// convert error to ApiError, if needed
+app.use(errorConverter);
+
+// handle error
+app.use(errorHandler);
 
 module.exports = app;

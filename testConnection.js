@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const logger = require('./src/config/logger');
 
 async function cleanupDatabase() {
   const uri = 'mongodb://localhost:27017/lista-firme';
@@ -6,13 +7,13 @@ async function cleanupDatabase() {
 
   try {
     await client.connect();
-    console.log('Connected to MongoDB');
+    logger.info('Connected to MongoDB');
 
     const db = client.db('lista-firme');
     const companies = db.collection('companies');
 
     // Step 1: Remove identical addresses
-    console.log('Step 1: Checking for identical addresses...');
+    logger.info('Step 1: Checking for identical addresses...');
     const cursor = await companies.find({
       $expr: {
         $and: [
@@ -29,13 +30,13 @@ async function cleanupDatabase() {
       await companies.updateOne({ _id: doc._id }, { $unset: { 'adresa_anaf.domiciliu_fiscal': '' } });
       count++;
       if (count % 1000 === 0) {
-        console.log(`Processed ${count} documents...`);
+        logger.info(`Processed ${count} documents...`);
       }
     }
-    console.log(`Removed duplicate addresses from ${count} documents`);
+    logger.info(`Removed duplicate addresses from ${count} documents`);
 
     // Step 2: Remove empty fields
-    console.log('\nStep 2: Removing empty fields...');
+    logger.info('\nStep 2: Removing empty fields...');
     const emptyFieldsResult = await companies.updateMany(
       {},
       {
@@ -56,10 +57,10 @@ async function cleanupDatabase() {
         },
       }
     );
-    console.log(`Updated ${emptyFieldsResult.modifiedCount} documents removing empty fields`);
+    logger.info(`Updated ${emptyFieldsResult.modifiedCount} documents removing empty fields`);
 
     // Step 3: Remove dash values
-    console.log('\nStep 3: Removing dash values...');
+    logger.info('\nStep 3: Removing dash values...');
     const dashValuesResult = await companies.updateMany(
       {
         $or: [{ 'date_generale.administrator': '-' }, { 'date_generale.email': '-' }],
@@ -71,10 +72,10 @@ async function cleanupDatabase() {
         },
       }
     );
-    console.log(`Updated ${dashValuesResult.modifiedCount} documents removing dash values`);
+    logger.info(`Updated ${dashValuesResult.modifiedCount} documents removing dash values`);
 
     // Step 4: Remove empty strings from address
-    console.log('\nStep 4: Cleaning up address fields...');
+    logger.info('\nStep 4: Cleaning up address fields...');
     const emptyAddressResult = await companies.updateMany(
       {
         $or: [{ 'adresa.scara': '' }, { 'adresa.sector': '' }],
@@ -86,20 +87,20 @@ async function cleanupDatabase() {
         },
       }
     );
-    console.log(`Updated ${emptyAddressResult.modifiedCount} documents cleaning address fields`);
+    logger.info(`Updated ${emptyAddressResult.modifiedCount} documents cleaning address fields`);
 
     // Get final stats
     const stats = await companies.stats();
-    console.log('\nFinal storage statistics:');
-    console.log(`Storage size: ${(stats.size / (1024 * 1024)).toFixed(2)} MB`);
-    console.log(`Total documents: ${stats.count}`);
+    logger.info('\nFinal storage statistics:');
+    logger.info(`Storage size: ${(stats.size / (1024 * 1024)).toFixed(2)} MB`);
+    logger.info(`Total documents: ${stats.count}`);
   } catch (err) {
-    console.error('Error during cleanup:', err);
+    logger.error('Error during cleanup:', err);
   } finally {
     await client.close();
-    console.log('\nClosed MongoDB connection');
+    logger.info('\nClosed MongoDB connection');
   }
 }
 
 // Run the cleanup
-cleanupDatabase().catch(console.error);
+cleanupDatabase().catch(logger.error);

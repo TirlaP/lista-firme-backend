@@ -2,6 +2,7 @@ const { Company, CAEN } = require('../models');
 const { Parser } = require('json2csv');
 const ApiError = require('../utils/ApiError');
 const httpStatus = require('http-status');
+const logger = require('../config/logger');
 
 class LatestExportService {
   constructor() {
@@ -45,7 +46,7 @@ class LatestExportService {
       this.caenCache.set(code, name);
       return name;
     } catch (error) {
-      console.error(`Error fetching CAEN name for code ${code}:`, error);
+      logger.error(`Error fetching CAEN name for code ${code}:`, error);
       return '';
     }
   }
@@ -103,7 +104,7 @@ class LatestExportService {
           res.write(csv);
           batch = [];
           isFirstBatch = false;
-          console.log(`Processed ${processedCount} documents`);
+          logger.info(`Processed ${processedCount} documents`);
         }
       }
 
@@ -113,13 +114,13 @@ class LatestExportService {
           res.write('\n');
         }
         res.write(csv);
-        console.log(`Processed ${processedCount} documents (final batch)`);
+        logger.info(`Processed ${processedCount} documents (final batch)`);
       }
 
       res.end();
-      console.log('Latest export completed successfully');
+      logger.info('Latest export completed successfully');
     } catch (error) {
-      console.error('Latest export failed:', error);
+      logger.error('Latest export failed:', error);
       if (!res.headersSent) {
         throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Export processing failed');
       }
@@ -128,7 +129,7 @@ class LatestExportService {
         try {
           await cursor.close();
         } catch (error) {
-          console.error('Error closing cursor:', error);
+          logger.error('Error closing cursor:', error);
         }
       }
     }

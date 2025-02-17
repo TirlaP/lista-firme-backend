@@ -15,10 +15,10 @@ class PaymentService {
 
     this.publicCert = fs.readFileSync(path.resolve(__dirname, '../../public-key-sandbox.cer'), 'utf8');
 
-    // console.log('process.env.NETOPIA_API_KEY', process.env.NETOPIA_API_KEY);
-    // console.log('process.env.NETOPIA_SIGNATURE', process.env.NETOPIA_SIGNATURE);
-    // console.log('this.privateKey', this.privateKey);
-    // console.log('this.publicCert', this.publicCert);
+    // logger.info('process.env.NETOPIA_API_KEY', process.env.NETOPIA_API_KEY);
+    // logger.info('process.env.NETOPIA_SIGNATURE', process.env.NETOPIA_SIGNATURE);
+    // logger.info('this.privateKey', this.privateKey);
+    // logger.info('this.publicCert', this.publicCert);
 
     // Force sandbox mode
     this.netopia = new Netopia({

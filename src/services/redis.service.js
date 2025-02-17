@@ -1,6 +1,7 @@
 // src/services/redis.service.js
 const Redis = require('ioredis');
 const config = require('../config/config');
+const logger = require('../config/logger');
 
 class RedisService {
   constructor() {
@@ -11,7 +12,7 @@ class RedisService {
       retryStrategy: (times) => Math.min(times * 50, 2000),
     });
 
-    this.client.on('error', (err) => console.error('Redis error:', err));
+    this.client.on('error', (err) => logger.error('Redis error:', err));
   }
 
   async get(key) {
@@ -19,7 +20,7 @@ class RedisService {
       const value = await this.client.get(key);
       return value ? JSON.parse(value) : null;
     } catch (error) {
-      console.error('Redis get error:', error);
+      logger.error('Redis get error:', error);
       return null;
     }
   }
@@ -28,7 +29,7 @@ class RedisService {
     try {
       await this.client.set(key, JSON.stringify(value), 'EX', ttl);
     } catch (error) {
-      console.error('Redis set error:', error);
+      logger.error('Redis set error:', error);
     }
   }
 
@@ -36,7 +37,7 @@ class RedisService {
     try {
       await this.client.del(key);
     } catch (error) {
-      console.error('Redis delete error:', error);
+      logger.error('Redis delete error:', error);
     }
   }
 
@@ -45,7 +46,7 @@ class RedisService {
       await this.client.hset(key, field, JSON.stringify(value));
       await this.client.expire(key, ttl);
     } catch (error) {
-      console.error('Redis hash set error:', error);
+      logger.error('Redis hash set error:', error);
     }
   }
 
@@ -54,7 +55,7 @@ class RedisService {
       const value = await this.client.hget(key, field);
       return value ? JSON.parse(value) : null;
     } catch (error) {
-      console.error('Redis hash get error:', error);
+      logger.error('Redis hash get error:', error);
       return null;
     }
   }

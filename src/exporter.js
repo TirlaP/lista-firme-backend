@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const ExcelJS = require('exceljs');
 const moment = require('moment');
 const Company = require('./models/company.model');
+const logger = require('./config/logger');
 
 const MONGODB_URI = 'mongodb://localhost:27017/lista-firme';
 
@@ -11,9 +12,9 @@ async function connectToDatabase() {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log('Connected to MongoDB successfully');
+    logger.info('Connected to MongoDB successfully');
   } catch (error) {
-    console.error('MongoDB connection error:', error);
+    logger.error('MongoDB connection error:', error);
     process.exit(1);
   }
 }
@@ -44,7 +45,7 @@ async function exportCompaniesToExcel() {
   const startDate = '2024-11-21';
   const endDate = '2024-11-28';
 
-  console.log('Searching for companies between:', startDate, 'and', endDate);
+  logger.info('Searching for companies between:', startDate, 'and', endDate);
 
   // Query companies based on date_generale.data_inregistrare
   const companies = await Company.find({
@@ -54,7 +55,7 @@ async function exportCompaniesToExcel() {
     },
   }).lean();
 
-  console.log(`Found ${companies.length} companies`);
+  logger.info(`Found ${companies.length} companies`);
 
   // Add the data to the worksheet
   companies.forEach((company) => {
@@ -89,7 +90,7 @@ async function exportCompaniesToExcel() {
   // Save the workbook
   const fileName = `companies_export_${moment().format('YYYY-MM-DD_HH-mm')}.xlsx`;
   await workbook.xlsx.writeFile(fileName);
-  console.log(`Excel file created: ${fileName}`);
+  logger.info(`Excel file created: ${fileName}`);
 
   // Close the database connection
   await mongoose.connection.close();
@@ -100,10 +101,10 @@ async function run() {
   try {
     await connectToDatabase();
     await exportCompaniesToExcel();
-    console.log('Export completed successfully');
+    logger.info('Export completed successfully');
   } catch (error) {
-    console.error('Export failed:', error);
-    console.error(error.stack);
+    logger.error('Export failed:', error);
+    logger.error(error.stack);
   }
 }
 

@@ -3,6 +3,7 @@ const ApiError = require('../../utils/ApiError');
 const httpStatus = require('http-status');
 const BaseExportService = require('./baseExport.service');
 const { Company } = require('../../models');
+const logger = require('../../config/logger');
 
 class ExcelExportService extends BaseExportService {
   constructor() {
@@ -17,10 +18,10 @@ class ExcelExportService extends BaseExportService {
       const query = this._buildFilter(filter);
       const sort = this._buildSort(filter.sortBy);
 
-      console.log('Export query:', JSON.stringify(query, null, 2));
+      logger.info('Export query:', JSON.stringify(query, null, 2));
 
       const count = await Company.countDocuments(query);
-      console.log('Documents to export:', count);
+      logger.info('Documents to export:', count);
 
       await this._initializeExcel();
       this._setHeaders(res, format);
@@ -29,9 +30,9 @@ class ExcelExportService extends BaseExportService {
       await this._processBatches(cursor, res);
 
       await this.workbook.xlsx.write(res);
-      console.log('Excel export completed successfully');
+      logger.info('Excel export completed successfully');
     } catch (error) {
-      console.error('Excel export failed:', error);
+      logger.error('Excel export failed:', error);
       if (!res.headersSent) {
         throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Export processing failed');
       }
@@ -40,7 +41,7 @@ class ExcelExportService extends BaseExportService {
         try {
           await cursor.close();
         } catch (error) {
-          console.error('Error closing cursor:', error);
+          logger.error('Error closing cursor:', error);
         }
       }
     }
@@ -75,9 +76,9 @@ class ExcelExportService extends BaseExportService {
       await this._processBatches(cursor, res);
 
       await this.workbook.xlsx.write(res);
-      console.log('Latest Excel export completed successfully');
+      logger.info('Latest Excel export completed successfully');
     } catch (error) {
-      console.error('Latest Excel export failed:', error);
+      logger.error('Latest Excel export failed:', error);
       if (!res.headersSent) {
         throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Export processing failed');
       }
@@ -86,7 +87,7 @@ class ExcelExportService extends BaseExportService {
         try {
           await cursor.close();
         } catch (error) {
-          console.error('Error closing cursor:', error);
+          logger.error('Error closing cursor:', error);
         }
       }
     }
@@ -133,7 +134,7 @@ class ExcelExportService extends BaseExportService {
       processedCount++;
 
       if (processedCount % this.batchSize === 0) {
-        console.log(`Processed ${processedCount} documents`);
+        logger.info(`Processed ${processedCount} documents`);
       }
     }
 
@@ -143,7 +144,7 @@ class ExcelExportService extends BaseExportService {
       to: { row: rowNum - 1, column: this.fields.length },
     };
 
-    console.log(`Processed ${processedCount} documents (total)`);
+    logger.info(`Processed ${processedCount} documents (total)`);
   }
 
   async _addRowToExcel(data, rowNum) {
