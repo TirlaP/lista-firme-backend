@@ -3,10 +3,15 @@ const app = require('./app');
 const config = require('./config/config');
 const logger = require('./config/logger');
 
+const MONGODB_URI = 'mongodb+srv://tirlapetru:Maracas123@ecommerce-platform.ea4mo.mongodb.net/';
 let server;
 mongoose
-  .connect('mongodb+srv://tirlapetru:Maracas123@ecommerce-platform.ea4mo.mongodb.net/', config.mongoose.options)
+  .connect(MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => {
+    logger.info('MONGODB URL - ', MONGODB_URI);
     logger.info('Connected to MongoDB');
     server = app.listen(config.port, () => {
       logger.info(`Listening to port ${config.port}`);

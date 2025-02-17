@@ -4,11 +4,11 @@ const moment = require('moment');
 const Company = require('./models/company.model');
 const logger = require('./config/logger');
 
-const MONGODB_URI = 'mongodb://localhost:27017/lista-firme';
+const MONGODB_URI = 'mongodb+srv://tirlapetru:Maracas123@ecommerce-platform.ea4mo.mongodb.net/';
 
 async function connectToDatabase() {
   try {
-    await mongoose.connect('mongodb+srv://tirlapetru:Maracas123@ecommerce-platform.ea4mo.mongodb.net/', {
+    await mongoose.connect(MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
