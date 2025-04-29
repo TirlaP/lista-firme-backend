@@ -1,4 +1,3 @@
-// src/app.js
 const express = require('express');
 const helmet = require('helmet');
 const xss = require('xss-clean');
@@ -56,32 +55,27 @@ if (config.env === 'production') {
 // v1 api routes
 app.use('/v1', routes);
 
-// Initialize Apollo Server before the 404 handler
-const initApollo = async () => {
+const setup = async () => {
   try {
+    // Initialize Apollo Server
     await createApolloServer(app);
     logger.info('Apollo Server initialized successfully');
+
+    // send back a 404 error for any unknown api request
+    app.use((req, res, next) => {
+      next(new ApiError(httpStatus.NOT_FOUND, 'Not found'));
+    });
+
+    // convert error to ApiError, if needed
+    app.use(errorConverter);
+
+    // handle error
+    app.use(errorHandler);
   } catch (error) {
     logger.error('Failed to initialize Apollo Server:', error);
     throw error;
   }
 };
 
-// Initialize Apollo Server before setting up error handlers
-initApollo().catch((error) => {
-  logger.error('Failed to start Apollo Server:', error);
-  process.exit(1);
-});
-
-// send back a 404 error for any unknown api request
-app.use((req, res, next) => {
-  next(new ApiError(httpStatus.NOT_FOUND, 'Not found'));
-});
-
-// convert error to ApiError, if needed
-app.use(errorConverter);
-
-// handle error
-app.use(errorHandler);
-
-module.exports = app;
+// Export the setup function along with the app
+module.exports = { app, setup };

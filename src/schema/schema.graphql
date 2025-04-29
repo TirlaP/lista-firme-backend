@@ -1,93 +1,278 @@
 scalar Long
 
+"""
+Query root type
+"""
 type Query {
+  """
+  Get a paginated list of companies with filtering options
+  """
   companies(input: CompanyFilterInput!): CompanyConnection!
+
+  """
+  Get latest companies registered within a given timeframe
+  """
+  latestCompanies(input: LatestCompaniesInput!): CompanyConnection!
+
+  """
+  Get statistics about the latest registered companies
+  """
+  latestCompaniesStats(input: LatestCompaniesStatsInput!): LatestCompaniesStats!
+
+  """
+  Get a specific company by its fiscal code (CUI)
+  """
   company(cui: Int!): Company
+
+  """
+  Get overall statistics about the companies database
+  """
   companyStats: CompanyStats!
+
+  """
+  Get company statistics grouped by status
+  """
+  companyStatsByStatus: [CompanyStat!]!
+
+  """
+  Search for companies by name or CUI
+  """
   autocomplete(text: String!): [AutocompleteResult!]!
 }
 
+"""
+Mutation root type
+"""
+type Mutation {
+  """
+  Export filtered companies to a file
+  """
+  exportCompanies(input: ExportCompaniesInput!): ExportResult!
+
+  """
+  Export latest companies to a file
+  """
+  exportLatestCompanies(input: ExportLatestCompaniesInput!): ExportResult!
+}
+
+"""
+Result of an export operation
+"""
+type ExportResult {
+  """
+  The file name
+  """
+  fileName: String!
+
+  """
+  The file content (base64 encoded for binary files)
+  """
+  content: String!
+
+  """
+  The MIME type of the file
+  """
+  mimeType: String!
+}
+
+"""
+Input for exporting companies
+"""
+input ExportCompaniesInput {
+  """
+  Filter by CAEN code
+  """
+  cod_CAEN: String
+
+  """
+  Filter by multiple CAEN codes
+  """
+  caen_codes: [String]
+
+  """
+  Filter by county (județ)
+  """
+  judet: String
+
+  """
+  Filter by city (oraș)
+  """
+  oras: String
+
+  """
+  Filter companies that have a website
+  """
+  hasWebsite: Boolean
+
+  """
+  Filter companies that have email
+  """
+  hasEmail: Boolean
+
+  """
+  Filter companies that have phone
+  """
+  hasPhone: Boolean
+
+  """
+  Filter companies that have administrator
+  """
+  hasAdmin: Boolean
+
+  """
+  Filter by company status
+  """
+  stare: String
+
+  """
+  Export format (csv or xlsx)
+  """
+  format: String!
+}
+
+"""
+Input for exporting latest companies
+"""
+input ExportLatestCompaniesInput {
+  """
+  Time range for the export
+  """
+  timeRange: TimeRange
+
+  """
+  Custom start date (format: YYYY-MM-DD)
+  """
+  customStartDate: String
+
+  """
+  Custom end date (format: YYYY-MM-DD)
+  """
+  customEndDate: String
+
+  """
+  Export format (csv or xlsx)
+  """
+  format: String!
+}
+
+"""
+A connection to a list of companies
+"""
 type CompanyConnection {
+  """
+  A list of company edges
+  """
   edges: [CompanyEdge!]!
+
+  """
+  Pagination information
+  """
   pageInfo: PageInfo!
+
+  """
+  Total count of companies matching the filter criteria
+  """
   totalCount: Int!
 }
 
+"""
+An edge in a company connection
+"""
 type CompanyEdge {
+  """
+  The company node
+  """
   node: Company!
+
+  """
+  A cursor for pagination
+  """
   cursor: String!
 }
 
+"""
+Pagination information
+"""
 type PageInfo {
+  """
+  Indicates if there are more pages
+  """
   hasNextPage: Boolean!
+
+  """
+  The cursor to the last item in the current page
+  """
   endCursor: String
 }
 
+"""
+A company
+"""
 type Company {
+  """
+  Fiscal code (CUI)
+  """
   cui: Int!
+
+  """
+  Company name (short)
+  """
   nume: String!
+
+  """
+  Company full name
+  """
   denumire: String!
+
+  """
+  Company address
+  """
   adresa: Address
+
+  """
+  Full address as text
+  """
   adresa_completa: String
+
+  """
+  Contact information
+  """
   contact: Contact
+
+  """
+  CAEN code (business activity code)
+  """
   cod_CAEN: String
+
+  """
+  Registration information
+  """
   inregistrare: Registration
+
+  """
+  Company type information
+  """
   tip_firma: CompanyType
+
+  """
+  CAEN code details
+  """
   caen: CAEN
+
+  """
+  General data
+  """
   date_generale: DateGenerale
+
+  """
+  ANAF address information
+  """
   adresa_anaf: AdresaAnaf
 }
 
-type DateGenerale {
-  cui: Int
-  denumire: String
-  adresa: String
-  nrRegCom: String
-  telefon: String
-  fax: String
-  codPostal: String
-  stare_inregistrare: String
-  data_inregistrare: String
-  statusRO_e_Factura: Boolean
-  organFiscalCompetent: String
-  forma_de_proprietate: String
-  forma_organizare: String
-  forma_juridica: String
-  website: String
-  email: String
-}
-
-type AdresaAnaf {
-  sediu_social: SediuSocial
-  domiciliu_fiscal: DomiciliuFiscal
-}
-
-type SediuSocial {
-  sdenumire_Strada: String
-  snumar_Strada: String
-  sdenumire_Localitate: String
-  scod_Localitate: String
-  sdenumire_Judet: String
-  scod_Judet: String
-  scod_JudetAuto: String
-  stara: String
-  sdetalii_Adresa: String
-  scod_Postal: String
-}
-
-type DomiciliuFiscal {
-  ddenumire_Strada: String
-  dnumar_Strada: String
-  ddenumire_Localitate: String
-  dcod_Localitate: String
-  ddenumire_Judet: String
-  dcod_Judet: String
-  dcod_JudetAuto: String
-  dtara: String
-  ddetalii_Adresa: String
-  dcod_Postal: String
-}
-
+"""
+Company address
+"""
 type Address {
   strada: String
   numar: String
@@ -101,33 +286,132 @@ type Address {
   cod_localitate: String
 }
 
+"""
+Company contact information
+"""
 type Contact {
   email: String
   telefon: String
   fax: String
   website: String
+  mobil: String
 }
 
+"""
+Registration information
+"""
 type Registration {
   numar: String
   stare: String
   data: String
   organ_fiscal: String
+  data_actualizare: String
+  sursa: String
 }
 
+"""
+Company type information
+"""
 type CompanyType {
   forma_juridica: String
   forma_organizare: String
   forma_proprietate: String
 }
 
+"""
+CAEN code information
+"""
 type CAEN {
   code: String!
   name: String!
   section: String!
   division: String!
+  description: String
 }
 
+"""
+General company data
+"""
+type DateGenerale {
+  cui: Int
+  denumire: String
+  adresa: String
+  telefon: String
+  fax: String
+  codPostal: String
+  stare_inregistrare: String
+  data_inregistrare: String
+  statusRO_e_Factura: Boolean
+  organFiscalCompetent: String
+  forma_de_proprietate: String
+  forma_organizare: String
+  forma_juridica: String
+  website: String
+  email: String
+  nrRegCom: String
+  TVA: Boolean
+  capital_social: Float
+  cifra_afaceri: Float
+  profit: Float
+  pierdere: Float
+  numar_angajati: Int
+  active: Float
+  numar_puncte_lucru: Int
+  numar_sucursale: Int
+  data_bilant: String
+  data_actualizare: String
+  observatii: String
+  cifra_afaceri_precedenta: Float
+  profit_precedent: Float
+  pierdere_precedenta: Float
+  active_precedente: Float
+  numar_angajati_precedent: Int
+  administrators: [String]
+}
+
+"""
+ANAF address information
+"""
+type AdresaAnaf {
+  sediu_social: SediuSocial
+  domiciliu_fiscal: DomiciliuFiscal
+}
+
+"""
+Social headquarters information
+"""
+type SediuSocial {
+  sdenumire_Strada: String
+  snumar_Strada: String
+  sdenumire_Localitate: String
+  scod_Localitate: String
+  sdenumire_Judet: String
+  scod_Judet: String
+  scod_JudetAuto: String
+  stara: String
+  sdetalii_Adresa: String
+  scod_Postal: String
+}
+
+"""
+Fiscal domicile information
+"""
+type DomiciliuFiscal {
+  ddenumire_Strada: String
+  dnumar_Strada: String
+  ddenumire_Localitate: String
+  dcod_Localitate: String
+  ddenumire_Judet: String
+  dcod_Judet: String
+  dcod_JudetAuto: String
+  dtara: String
+  ddetalii_Adresa: String
+  dcod_Postal: String
+}
+
+"""
+Overall company statistics
+"""
 type CompanyStats {
   totalCompanies: Int!
   activeCompanies: Int!
@@ -135,33 +419,145 @@ type CompanyStats {
   withContact: Int!
 }
 
+"""
+Company statistics by status
+"""
+type CompanyStat {
+  stare: String!
+  count: Int!
+  label: String!
+  lastUpdated: String!
+}
+
+"""
+Statistics about latest companies
+"""
+type LatestCompaniesStats {
+  totalNew: Int!
+  topCAEN: [CAENStat!]!
+  topLocations: [LocationStat!]!
+  dailyTrend: [DailyTrend!]!
+  timeRange: String!
+  dateRange: DateRange!
+}
+
+"""
+CAEN code statistics
+"""
+type CAENStat {
+  code: String!
+  count: Int!
+}
+
+"""
+Location statistics
+"""
+type LocationStat {
+  location: String!
+  count: Int!
+}
+
+"""
+Daily trend statistics
+"""
+type DailyTrend {
+  date: String!
+  count: Int!
+}
+
+"""
+Date range
+"""
+type DateRange {
+  from: String!
+  to: String!
+}
+
+"""
+Input for filtering companies
+"""
 input CompanyFilterInput {
   first: Int
   after: String
   cod_CAEN: String
+  caen_codes: [String]
   judet: String
   oras: String
   hasWebsite: Boolean
-  hasContact: Boolean
+  hasEmail: Boolean
+  hasPhone: Boolean
+  hasAdmin: Boolean
+  stare: String
+  cifraAfaceriMin: Float
+  cifraAfaceriMax: Float
+  profitMin: Float
+  profitMax: Float
+  angajatiMin: Int
+  angajatiMax: Int
+  anInfiintareMin: Int
+  anInfiintareMax: Int
   sortBy: CompanySortInput
 }
 
+"""
+Input for latest companies query
+"""
+input LatestCompaniesInput {
+  first: Int
+  after: String
+  timeRange: TimeRange
+  customStartDate: String
+  customEndDate: String
+  sortBy: CompanySortInput
+}
+
+"""
+Input for latest companies statistics
+"""
+input LatestCompaniesStatsInput {
+  timeRange: TimeRange
+  customStartDate: String
+  customEndDate: String
+}
+
+"""
+Input for sorting companies
+"""
 input CompanySortInput {
   field: CompanySortField!
   direction: SortDirection!
 }
 
+"""
+Fields available for sorting companies
+"""
 enum CompanySortField {
   REGISTRATION_DATE
   CUI
   NUME
 }
 
+"""
+Sort direction
+"""
 enum SortDirection {
   ASC
   DESC
 }
 
+"""
+Time range for filtering companies by registration date
+"""
+enum TimeRange {
+  TODAY
+  YESTERDAY
+  LAST7DAYS
+  LAST30DAYS
+}
+
+"""
+Result of an autocomplete search
+"""
 type AutocompleteResult {
   companyId: String!
   companyName: String

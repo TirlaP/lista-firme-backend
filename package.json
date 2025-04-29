@@ -81,6 +81,7 @@
     "morgan": "^1.9.1",
     "netopia-card": "^2.1.1",
     "node-cache": "^5.1.2",
+    "node-cron": "^3.0.3",
     "nodemailer": "^6.3.1",
     "ora": "^8.1.1",
     "passport": "^0.4.0",
@@ -91,8 +92,10 @@
     "progress": "^2.0.3",
     "swagger-jsdoc": "^6.0.8",
     "swagger-ui-express": "^4.1.6",
+    "uuid": "^11.1.0",
     "validator": "^13.0.0",
     "winston": "^3.2.1",
+    "xlsx": "^0.18.5",
     "xss-clean": "^0.1.1"
   },
   "devDependencies": {

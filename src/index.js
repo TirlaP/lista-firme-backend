@@ -1,22 +1,26 @@
 const mongoose = require('mongoose');
-const app = require('./app');
+const { app, setup } = require('./app');
 const config = require('./config/config');
 const logger = require('./config/logger');
 
-const MONGODB_URI = 'mongodb+srv://tirlapetru:Maracas123@ecommerce-platform.ea4mo.mongodb.net/';
 let server;
-mongoose
-  .connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
-    logger.info('MONGODB URL - ', MONGODB_URI);
+
+const startServer = async () => {
+  try {
+    await mongoose.connect(config.mongoose.url, config.mongoose.options);
     logger.info('Connected to MongoDB');
+
+    // Setup Apollo and other middleware
+    await setup();
+
     server = app.listen(config.port, () => {
       logger.info(`Listening to port ${config.port}`);
     });
-  });
+  } catch (error) {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
 
 const exitHandler = () => {
   if (server) {
@@ -43,3 +47,6 @@ process.on('SIGTERM', () => {
     server.close();
   }
 });
+
+// Start the server
+startServer();
