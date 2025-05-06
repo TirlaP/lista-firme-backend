@@ -9,10 +9,10 @@ const locationSchema = mongoose.Schema(
       trim: true,
       index: true,
     },
-    type: {
+    full_name: {
       type: String,
-      enum: ['county', 'city', 'municipality', 'sector'], // Added 'sector' for Bucharest
       required: true,
+      trim: true,
       index: true,
     },
     code: {
@@ -22,33 +22,33 @@ const locationSchema = mongoose.Schema(
       trim: true,
       index: true,
     },
-    countyCode: {
+    county_code: {
       type: String,
-      required: function () {
-        return this.type === 'city' || this.type === 'municipality' || this.type === 'sector';
-      },
+      required: true,
       trim: true,
       index: true,
     },
-    standardizedNames: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
-    aliases: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
-    population: {
-      type: Number,
-      default: 0,
+    county_name: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
     },
-    isActive: {
+    parent_name: {
+      type: String,
+      trim: true,
+      sparse: true,
+      index: true,
+    },
+    parent_code: {
+      type: String,
+      trim: true,
+      sparse: true,
+      index: true,
+    },
+    is_county: {
       type: Boolean,
-      default: true,
+      default: false,
       index: true,
     },
   },
@@ -58,33 +58,20 @@ const locationSchema = mongoose.Schema(
 );
 
 // Compound indexes for better query performance
-locationSchema.index({ name: 1, type: 1 });
-locationSchema.index({ countyCode: 1, type: 1 });
-locationSchema.index({ standardizedNames: 1, type: 1 });
-locationSchema.index({ aliases: 1, type: 1 });
-locationSchema.index({ isActive: 1, type: 1 });
+locationSchema.index({ county_code: 1, name: 1 });
+locationSchema.index({ parent_code: 1 });
 
 // Text index for search functionality
 locationSchema.index(
-  { name: 'text', standardizedNames: 'text', aliases: 'text' },
+  { name: 'text', full_name: 'text', standardizedNames: 'text', aliases: 'text' },
   {
     weights: {
       name: 10,
+      full_name: 8,
       standardizedNames: 5,
       aliases: 3,
     },
     name: 'location_text_search',
-  }
-);
-
-// Add unique compound index to prevent duplicate cities within a county
-locationSchema.index(
-  { countyCode: 1, name: 1 },
-  {
-    unique: true,
-    partialFilterExpression: {
-      type: { $in: ['city', 'municipality', 'sector'] },
-    },
   }
 );
 

@@ -1,0 +1,63 @@
+"""
+Overall company statistics
+"""
+type CompanyStats {
+  totalCompanies: Int!
+  activeCompanies: Int!
+  withWebsite: Int!
+  withContact: Int!
+}
+
+"""
+Company statistics by status
+"""
+type CompanyStat {
+  stare: String!
+  count: Int!
+  label: String!
+  lastUpdated: String!
+}
+
+"""
+Statistics about latest companies
+"""
+type LatestCompaniesStats {
+  totalNew: Int!
+  topCAEN: [CAENStat!]!
+  topLocations: [LocationStat!]!
+  dailyTrend: [DailyTrend!]!
+  timeRange: String!
+  dateRange: DateRange!
+}
+
+"""
+CAEN code statistics
+"""
+type CAENStat {
+  code: String!
+  count: Int!
+}
+
+"""
+Location statistics
+"""
+type LocationStat {
+  location: String!
+  count: Int!
+}
+
+"""
+Daily trend statistics
+"""
+type DailyTrend {
+  date: String!
+  count: Int!
+}
+
+"""
+Date range
+"""
+type DateRange {
+  from: String!
+  to: String!
+}

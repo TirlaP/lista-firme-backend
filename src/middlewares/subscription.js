@@ -1,16 +1,12 @@
 const httpStatus = require('http-status');
 const ApiError = require('../utils/ApiError');
 const { subscriptionService } = require('../services');
-const { SubscriptionPlan } = require('../models/subscription.model');
+const { SubscriptionPlan } = require('../models');
 
-/**
- * Check if user has an active subscription and access to features
- */
 const checkSubscriptionAccess = (requiredFeature) => async (req, res, next) => {
   try {
     const subscription = await subscriptionService.getUserActiveSubscription(req.user.id);
 
-    // If no active subscription, default to free plan limits
     if (!subscription) {
       const freePlan = await SubscriptionPlan.findOne({ name: 'free' });
       req.userSubscription = {
@@ -21,7 +17,6 @@ const checkSubscriptionAccess = (requiredFeature) => async (req, res, next) => {
         },
       };
 
-      // If requiring a feature not available in free plan
       if (requiredFeature && !freePlan.features[requiredFeature]) {
         throw new ApiError(httpStatus.PAYMENT_REQUIRED, `This feature requires a paid subscription`);
       }
@@ -29,14 +24,12 @@ const checkSubscriptionAccess = (requiredFeature) => async (req, res, next) => {
       return next();
     }
 
-    // Check if subscription is active and not expired
     if (subscription.status !== 'active' || subscription.endDate < new Date()) {
       throw new ApiError(httpStatus.PAYMENT_REQUIRED, 'Your subscription has expired');
     }
 
     const plan = await SubscriptionPlan.findOne({ name: subscription.plan });
 
-    // Check if the required feature is available in the plan
     if (requiredFeature && !plan.features[requiredFeature]) {
       throw new ApiError(
         httpStatus.FORBIDDEN,
@@ -56,14 +49,10 @@ const checkSubscriptionAccess = (requiredFeature) => async (req, res, next) => {
   }
 };
 
-/**
- * Check and update usage limits
- */
 const checkUsageLimit = (usageType) => async (req, res, next) => {
   try {
     const subscription = await subscriptionService.getUserActiveSubscription(req.user.id);
 
-    // If no subscription, check free plan limits
     if (!subscription) {
       const freePlan = await SubscriptionPlan.findOne({ name: 'free' });
       const limit = freePlan.features[usageType === 'companiesViewed' ? 'companiesPerMonth' : 'exportsPerMonth'];
@@ -92,37 +81,29 @@ const checkUsageLimit = (usageType) => async (req, res, next) => {
   }
 };
 
-/**
- * Special middleware for export functionality
- */
 const checkExportAccess = async (req, res, next) => {
   try {
     const subscription = await subscriptionService.getUserActiveSubscription(req.user.id);
 
-    // Block exports for free plan
     if (!subscription) {
       throw new ApiError(httpStatus.PAYMENT_REQUIRED, 'Exports are only available for paid subscriptions');
     }
 
-    // Check subscription status
     if (subscription.status !== 'active' || subscription.endDate < new Date()) {
       throw new ApiError(httpStatus.PAYMENT_REQUIRED, 'Your subscription has expired');
     }
 
-    // Check if plan allows bulk export
     const plan = await SubscriptionPlan.findOne({ name: subscription.plan });
     if (!plan.features.bulkExport) {
       throw new ApiError(httpStatus.FORBIDDEN, 'Bulk export is only available for Premium and Enterprise plans');
     }
 
-    // Check export count limit
     const hasAvailableExports = await subscriptionService.checkAndUpdateUsage(subscription._id, 'exportsCount');
 
     if (!hasAvailableExports) {
       throw new ApiError(httpStatus.TOO_MANY_REQUESTS, 'You have reached your export limit for this month');
     }
 
-    // Add subscription info to request for potential use in controllers
     req.userSubscription = {
       plan,
       usage: subscription.usage,
@@ -135,7 +116,6 @@ const checkExportAccess = async (req, res, next) => {
   }
 };
 
-// Helper function to determine minimum required plan for a feature
 const getMinimumRequiredPlan = (feature) => {
   const featurePlanMap = {
     searchFilters: 'basic',

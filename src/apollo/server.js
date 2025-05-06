@@ -1,8 +1,6 @@
 const { ApolloServer } = require('@apollo/server');
 const { expressMiddleware } = require('@apollo/server/express4');
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const config = require('../config/config');
@@ -10,8 +8,8 @@ const httpStatus = require('http-status');
 const ApiError = require('../utils/ApiError');
 const logger = require('../config/logger');
 
-const schemaPath = path.join(__dirname, '../schema/schema.graphql');
-const typeDefs = fs.readFileSync(schemaPath, 'utf-8');
+// Import the combined schema from our new modular structure
+const typeDefs = require('../schema');
 
 const verifyAccessToken = async (token) => {
   try {

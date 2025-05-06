@@ -1,0 +1,134 @@
+"""
+Romanian location data including counties and cities
+"""
+type Location {
+  """
+  Unique location code
+  """
+  code: String!
+
+  """
+  Location name
+  """
+  name: String!
+
+  """
+  Full location name (including parenthetical)
+  """
+  fullName: String!
+
+  """
+  County code this location belongs to
+  """
+  countyCode: String!
+
+  """
+  County name this location belongs to
+  """
+  countyName: String!
+
+  """
+  Parent location code (if applicable)
+  """
+  parentCode: String
+
+  """
+  Parent location name (if applicable)
+  """
+  parentName: String
+
+  """
+  Whether this location is a county
+  """
+  isCounty: Boolean!
+
+  """
+  Additional standardized names for this location
+  """
+  standardizedNames: [String!]
+
+  """
+  Alternative names for this location
+  """
+  aliases: [String!]
+
+  """
+  Whether this location is currently active
+  """
+  isActive: Boolean!
+}
+
+"""
+Location option for dropdown selection
+"""
+type LocationOption {
+  """
+  Location code (value)
+  """
+  value: String!
+
+  """
+  Location display name (label)
+  """
+  label: String!
+}
+
+"""
+Company location information
+"""
+type CompanyLocation {
+  """
+  County code
+  """
+  countyCode: String!
+
+  """
+  City code (if available)
+  """
+  cityCode: String
+
+  """
+  County information
+  """
+  county: CountyInfo
+
+  """
+  City information (if available)
+  """
+  city: CityInfo
+}
+
+"""
+County information
+"""
+type CountyInfo {
+  """
+  County code
+  """
+  code: String!
+
+  """
+  County name
+  """
+  name: String!
+}
+
+"""
+City information
+"""
+type CityInfo {
+  """
+  City code
+  """
+  code: String!
+
+  """
+  City name
+  """
+  name: String!
+
+  """
+  City full name (if different)
+  """
+  fullName: String!
+}

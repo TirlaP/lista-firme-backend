@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcryptjs');
 const { toJSON, paginate } = require('./plugins');
-const { roles } = require('../config/roles');
 
 const userSchema = mongoose.Schema(
   {
@@ -33,11 +32,14 @@ const userSchema = mongoose.Schema(
           throw new Error('Password must contain at least one letter and one number');
         }
       },
-      private: true, // used by the toJSON plugin
+      private: true,
+    },
+    roleId: {
+      type: mongoose.SchemaTypes.ObjectId,
+      ref: 'Role',
     },
     role: {
       type: String,
-      enum: roles,
       default: 'user',
     },
     isEmailVerified: {
@@ -88,6 +90,16 @@ const userSchema = mongoose.Schema(
     lastLoginAt: {
       type: Date,
     },
+    usageLimits: {
+      companiesViewedToday: {
+        count: { type: Number, default: 0 },
+        lastReset: { type: Date, default: Date.now },
+      },
+      exportsToday: {
+        count: { type: Number, default: 0 },
+        lastReset: { type: Date, default: Date.now },
+      },
+    },
     preferences: {
       emailNotifications: {
         type: Boolean,
@@ -105,74 +117,94 @@ const userSchema = mongoose.Schema(
   }
 );
 
-// Add indexes
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ 'subscriptionInfo.currentPlan': 1 });
 userSchema.index({ 'subscriptionInfo.status': 1 });
 userSchema.index({ 'subscriptionInfo.expiresAt': 1 });
+userSchema.index({ roleId: 1 });
 
-// Add plugins
 userSchema.plugin(toJSON);
 userSchema.plugin(paginate);
 
-/**
- * Check if email is taken
- * @param {string} email - The user's email
- * @param {ObjectId} [excludeUserId] - The id of the user to be excluded
- * @returns {Promise<boolean>}
- */
 userSchema.statics.isEmailTaken = async function (email, excludeUserId) {
   const user = await this.findOne({ email, _id: { $ne: excludeUserId } });
   return !!user;
 };
 
-/**
- * Check if password matches the user's password
- * @param {string} password
- * @returns {Promise<boolean>}
- */
 userSchema.methods.isPasswordMatch = async function (password) {
   const user = this;
   return bcrypt.compare(password, user.password);
 };
 
-/**
- * Reset monthly usage counters if needed
- */
-userSchema.methods.resetUsageIfNeeded = async function () {
-  const user = this;
-  const lastReset = new Date(user.subscriptionInfo.usage.lastResetDate);
-  const now = new Date();
+userSchema.methods.hasPermission = async function (requiredPermission) {
+  const role = await mongoose.model('Role').findById(this.roleId);
+  return role && role.permissions.includes(requiredPermission);
+};
 
-  if (lastReset.getMonth() !== now.getMonth() || lastReset.getFullYear() !== now.getFullYear()) {
-    user.subscriptionInfo.usage.companiesViewed = 0;
-    user.subscriptionInfo.usage.exportsCount = 0;
-    user.subscriptionInfo.usage.lastResetDate = now;
+userSchema.methods.getPermissions = async function () {
+  const role = await mongoose.model('Role').findById(this.roleId);
+  return role ? role.permissions : [];
+};
+
+userSchema.methods.getLimits = async function () {
+  const role = await mongoose.model('Role').findById(this.roleId);
+  return role
+    ? role.limits
+    : {
+        companiesPerDay: 10,
+        exportsPerDay: 0,
+        maxExportRecords: 0,
+      };
+};
+
+userSchema.methods.resetDailyUsageIfNeeded = async function () {
+  const now = new Date();
+  const user = this;
+  let reset = false;
+
+  const lastCompanyReset = new Date(user.usageLimits.companiesViewedToday.lastReset);
+  if (
+    lastCompanyReset.getDate() !== now.getDate() ||
+    lastCompanyReset.getMonth() !== now.getMonth() ||
+    lastCompanyReset.getFullYear() !== now.getFullYear()
+  ) {
+    user.usageLimits.companiesViewedToday.count = 0;
+    user.usageLimits.companiesViewedToday.lastReset = now;
+    reset = true;
+  }
+
+  const lastExportReset = new Date(user.usageLimits.exportsToday.lastReset);
+  if (
+    lastExportReset.getDate() !== now.getDate() ||
+    lastExportReset.getMonth() !== now.getMonth() ||
+    lastExportReset.getFullYear() !== now.getFullYear()
+  ) {
+    user.usageLimits.exportsToday.count = 0;
+    user.usageLimits.exportsToday.lastReset = now;
+    reset = true;
+  }
+
+  if (reset) {
     await user.save();
   }
+
+  return reset;
 };
 
-/**
- * Update company view count
- */
 userSchema.methods.incrementCompanyViews = async function () {
-  const user = this;
-  await user.resetUsageIfNeeded();
-  user.subscriptionInfo.usage.companiesViewed += 1;
-  await user.save();
+  await this.resetDailyUsageIfNeeded();
+  this.usageLimits.companiesViewedToday.count += 1;
+  await this.save();
+  return this.usageLimits.companiesViewedToday.count;
 };
 
-/**
- * Update export count
- */
 userSchema.methods.incrementExports = async function () {
-  const user = this;
-  await user.resetUsageIfNeeded();
-  user.subscriptionInfo.usage.exportsCount += 1;
-  await user.save();
+  await this.resetDailyUsageIfNeeded();
+  this.usageLimits.exportsToday.count += 1;
+  await this.save();
+  return this.usageLimits.exportsToday.count;
 };
 
-// Hash password before saving
 userSchema.pre('save', async function (next) {
   const user = this;
   if (user.isModified('password')) {
@@ -181,9 +213,6 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
-/**
- * @typedef User
- */
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;

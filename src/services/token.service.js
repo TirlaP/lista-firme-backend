@@ -36,6 +36,11 @@ const generateToken = (userId, expires, type, secret = config.jwt.secret) => {
  * @returns {Promise<Token>}
  */
 const saveToken = async (token, userId, expires, type, blacklisted = false) => {
+  // Delete any existing tokens of the same type for this user
+  if (type === tokenTypes.REFRESH) {
+    await Token.deleteMany({ user: userId, type });
+  }
+
   const tokenDoc = await Token.create({
     token,
     user: userId,

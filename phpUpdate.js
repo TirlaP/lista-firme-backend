@@ -16,7 +16,7 @@ const config = {
     companyCollection: 'companies',
   },
   anafPhpPath: '/Users/petruinstagram/Desktop/web-apps/anaf-php',
-  concurrentProcesses: 5, // Further reduced concurrency for more stability
+  concurrentProcesses: 25, // Further reduced concurrency for more stability
   tempDir: path.join('/Users/petruinstagram/Desktop/web-apps/anaf-php', 'temp_scripts'),
   minDelayBetweenRequests: 150, // Small delay between requests to same server (milliseconds)
   maxRetries: 3, // Number of retries for failed requests
@@ -31,12 +31,12 @@ async function connectToMongoDB() {
   return client;
 }
 
-// Get all companies from MongoDB with their registration dates
+// Get companies from MongoDB that don't have financial data yet
 async function getAllCompanies(db) {
   const collection = db.collection(config.mongodb.companyCollection);
   const companies = await collection
     .find(
-      {},
+      { financial_data: { $exists: false } }, // Only get companies without financial_data
       {
         projection: {
           cui: 1,
@@ -45,7 +45,7 @@ async function getAllCompanies(db) {
       }
     )
     .toArray();
-  console.log(`Found ${companies.length} companies in database`);
+  console.log(`Found ${companies.length} companies without financial data in database`);
   return companies;
 }
 

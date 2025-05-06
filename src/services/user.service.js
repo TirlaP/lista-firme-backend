@@ -1,57 +1,36 @@
 const httpStatus = require('http-status');
-const { User } = require('../models');
+const { User, Role } = require('../models');
 const ApiError = require('../utils/ApiError');
 
-/**
- * Create a user
- * @param {Object} userBody
- * @returns {Promise<User>}
- */
 const createUser = async (userBody) => {
   if (await User.isEmailTaken(userBody.email)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
   }
+
+  // Assign default role if not specified
+  if (!userBody.roleId) {
+    const defaultRole = await Role.findOne({ name: 'user' });
+    if (defaultRole) {
+      userBody.roleId = defaultRole._id;
+    }
+  }
+
   return User.create(userBody);
 };
 
-/**
- * Query for users
- * @param {Object} filter - Mongo filter
- * @param {Object} options - Query options
- * @param {string} [options.sortBy] - Sort option in the format: sortField:(desc|asc)
- * @param {number} [options.limit] - Maximum number of results per page (default = 10)
- * @param {number} [options.page] - Current page (default = 1)
- * @returns {Promise<QueryResult>}
- */
 const queryUsers = async (filter, options) => {
   const users = await User.paginate(filter, options);
   return users;
 };
 
-/**
- * Get user by id
- * @param {ObjectId} id
- * @returns {Promise<User>}
- */
 const getUserById = async (id) => {
-  return User.findById(id);
+  return User.findById(id).populate('roleId');
 };
 
-/**
- * Get user by email
- * @param {string} email
- * @returns {Promise<User>}
- */
 const getUserByEmail = async (email) => {
-  return User.findOne({ email });
+  return User.findOne({ email }).populate('roleId');
 };
 
-/**
- * Update user by id
- * @param {ObjectId} userId
- * @param {Object} updateBody
- * @returns {Promise<User>}
- */
 const updateUserById = async (userId, updateBody) => {
   const user = await getUserById(userId);
   if (!user) {
@@ -65,11 +44,6 @@ const updateUserById = async (userId, updateBody) => {
   return user;
 };
 
-/**
- * Delete user by id
- * @param {ObjectId} userId
- * @returns {Promise<User>}
- */
 const deleteUserById = async (userId) => {
   const user = await getUserById(userId);
   if (!user) {
@@ -79,6 +53,82 @@ const deleteUserById = async (userId) => {
   return user;
 };
 
+const assignRoleToUser = async (userId, roleId) => {
+  const [user, role] = await Promise.all([getUserById(userId), Role.findById(roleId)]);
+
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  if (!role) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Role not found');
+  }
+
+  user.roleId = role._id;
+  await user.save();
+  return user;
+};
+
+const updateUserRoleBasedOnSubscription = async (userId, subscriptionPlan) => {
+  const user = await getUserById(userId);
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  // Find the role that corresponds to the subscription plan
+  const role = await Role.findOne({ name: subscriptionPlan });
+  if (!role) {
+    throw new ApiError(httpStatus.NOT_FOUND, `Role for subscription plan ${subscriptionPlan} not found`);
+  }
+
+  user.roleId = role._id;
+  user.subscriptionInfo.currentPlan = subscriptionPlan;
+  await user.save();
+  return user;
+};
+
+const checkUserAccess = async (userId, permission) => {
+  const user = await getUserById(userId);
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  return await user.hasPermission(permission);
+};
+
+const checkUserQuota = async (userId, quotaType) => {
+  const user = await getUserById(userId).populate('roleId');
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  await user.resetDailyUsageIfNeeded();
+
+  let currentUsage, limit;
+
+  if (quotaType === 'companiesView') {
+    currentUsage = user.usageLimits.companiesViewedToday.count;
+    limit = user.roleId?.limits?.companiesPerDay || 0;
+  } else if (quotaType === 'exports') {
+    currentUsage = user.usageLimits.exportsToday.count;
+    limit = user.roleId?.limits?.exportsPerDay || 0;
+  } else {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid quota type');
+  }
+
+  // -1 means unlimited
+  if (limit === -1) {
+    return { hasQuota: true, current: currentUsage, limit: 'unlimited' };
+  }
+
+  return {
+    hasQuota: currentUsage < limit,
+    current: currentUsage,
+    limit,
+    remaining: Math.max(0, limit - currentUsage),
+  };
+};
+
 module.exports = {
   createUser,
   queryUsers,
@@ -86,4 +136,8 @@ module.exports = {
   getUserByEmail,
   updateUserById,
   deleteUserById,
+  assignRoleToUser,
+  updateUserRoleBasedOnSubscription,
+  checkUserAccess,
+  checkUserQuota,
 };

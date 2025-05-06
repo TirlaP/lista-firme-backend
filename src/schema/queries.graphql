@@ -1,0 +1,70 @@
+"""
+Query root type
+"""
+type Query {
+  """
+  Get a paginated list of companies with filtering options
+  """
+  companies(input: CompanyFilterInput!): CompanyConnection!
+
+  """
+  Get latest companies registered within a given timeframe
+  """
+  latestCompanies(input: LatestCompaniesInput!): CompanyConnection!
+
+  """
+  Get statistics about the latest registered companies
+  """
+  latestCompaniesStats(input: LatestCompaniesStatsInput!): LatestCompaniesStats!
+
+  """
+  Get a specific company by its fiscal code (CUI)
+  """
+  company(cui: Int!): Company
+
+  """
+  Get overall statistics about the companies database
+  """
+  companyStats: CompanyStats!
+
+  """
+  Get company statistics grouped by status
+  """
+  companyStatsByStatus: [CompanyStat!]!
+
+  """
+  Search for companies by name or CUI
+  """
+  autocomplete(text: String!): [AutocompleteResult!]!
+
+  # Location-related queries
+  """
+  Get all counties
+  """
+  counties: [LocationOption!]!
+
+  """
+  Search counties by name
+  """
+  searchCounties(query: String!): [LocationOption!]!
+
+  """
+  Get cities by county code
+  """
+  citiesByCounty(countyCode: String!): [LocationOption!]!
+
+  """
+  Search cities by name with optional county filter
+  """
+  searchCities(query: String!, countyCode: String): [LocationOption!]!
+
+  """
+  Get location by code
+  """
+  location(code: String!): Location
+
+  """
+  Get location name variations by code
+  """
+  locationVariations(code: String!): [String!]!
+}

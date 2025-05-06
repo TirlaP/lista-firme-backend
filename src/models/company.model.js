@@ -73,6 +73,14 @@ const companySchema = mongoose.Schema(
         dcod_Postal: String,
       },
     },
+    countyCode: {
+      type: String,
+      index: true,
+    },
+    cityCode: {
+      type: String,
+      index: true,
+    },
     cod_CAEN: {
       type: String,
       trim: true,
@@ -254,6 +262,10 @@ companySchema.index(
     },
   }
 );
+
+companySchema.index({ 'adresa.judet': 1, 'adresa.localitate': 1 });
+companySchema.index({ countyCode: 1 });
+companySchema.index({ cityCode: 1 });
 
 companySchema.plugin(toJSON);
 companySchema.plugin(paginate);

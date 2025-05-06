@@ -8,6 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
 const NodeCache = require('node-cache');
 const mongoose = require('mongoose');
+const { filterCompaniesByLocation } = require('./location.resolver');
 
 const caenCache = new NodeCache({ stdTTL: 3600, checkperiod: 120 });
 const locationCache = new NodeCache({ stdTTL: 3600, checkperiod: 120 });
@@ -56,7 +57,7 @@ async function initializeLocationData() {
     if (!locationCache.has(cacheKey)) {
       const locations = await Location.find({}).lean();
 
-      const counties = locations.filter((loc) => loc.type === 'county');
+      const counties = locations.filter((loc) => loc.is_county);
       counties.forEach((county) => {
         locationCache.set(`county_${county.code}`, county);
         locationCache.set(`county_name_${county.name.toLowerCase()}`, county);
@@ -65,7 +66,7 @@ async function initializeLocationData() {
         });
       });
 
-      const cities = locations.filter((loc) => ['city', 'municipality', 'sector'].includes(loc.type));
+      const cities = locations.filter((loc) => !loc.is_county);
       cities.forEach((city) => {
         locationCache.set(`city_${city.code}`, city);
         locationCache.set(`city_name_${city.name.toLowerCase()}`, city);
@@ -76,10 +77,10 @@ async function initializeLocationData() {
 
       const cityByCounty = {};
       cities.forEach((city) => {
-        if (!cityByCounty[city.countyCode]) {
-          cityByCounty[city.countyCode] = [];
+        if (!cityByCounty[city.county_code]) {
+          cityByCounty[city.county_code] = [];
         }
-        cityByCounty[city.countyCode].push(city);
+        cityByCounty[city.county_code].push(city);
       });
 
       Object.entries(cityByCounty).forEach(([countyCode, cities]) => {
@@ -116,60 +117,6 @@ async function getCaenData(code) {
   }
 
   return caenData;
-}
-
-async function getCountyByCode(code) {
-  if (!code) return null;
-
-  const cacheKey = `county_${code}`;
-  let county = locationCache.get(cacheKey);
-
-  if (!county) {
-    county = await Location.findOne({ code, type: 'county' }).lean();
-    if (county) {
-      locationCache.set(cacheKey, county);
-    }
-  }
-
-  return county;
-}
-
-async function getCityByCode(code) {
-  if (!code) return null;
-
-  const cacheKey = `city_${code}`;
-  let city = locationCache.get(cacheKey);
-
-  if (!city) {
-    city = await Location.findOne({
-      code,
-      type: { $in: ['city', 'municipality', 'sector'] },
-    }).lean();
-    if (city) {
-      locationCache.set(cacheKey, city);
-    }
-  }
-
-  return city;
-}
-
-async function getCitiesByCounty(countyCode) {
-  if (!countyCode) return [];
-
-  const cacheKey = `cities_by_county_${countyCode}`;
-  let cities = locationCache.get(cacheKey);
-
-  if (!cities) {
-    cities = await Location.find({
-      countyCode,
-      type: { $in: ['city', 'municipality', 'sector'] },
-    }).lean();
-    if (cities && cities.length > 0) {
-      locationCache.set(cacheKey, cities);
-    }
-  }
-
-  return cities || [];
 }
 
 const encodeCursor = (fieldName, fieldValue) =>
@@ -589,72 +536,64 @@ const resolvers = {
           });
         }
 
-        if (judet) {
-          const county = await getCountyByCode(judet);
-          if (county) {
-            const countyVariations = [
-              county.name?.toUpperCase(),
-              ...(county.standardizedNames || []),
-              ...(county.aliases || []),
-            ];
-
-            conditions.push({
-              $or: [
-                { 'adresa.judet': { $in: countyVariations } },
-                { 'adresa_anaf.sediu_social.sdenumire_Judet': { $in: countyVariations } },
-              ],
-            });
+        // Apply location filtering using our helper function
+        if (judet || oras) {
+          if (conditions.length > 0) {
+            filter = { $and: conditions };
           }
-        }
 
-        if (oras) {
-          const city = await getCityByCode(oras);
-          if (city) {
-            const cityVariations = [
-              city.name,
-              `Mun. ${city.name}`,
-              ...(city.standardizedNames || []),
-              ...(city.aliases || []),
-              `Municipiul ${city.name}`,
-              `Oraș ${city.name}`,
-              `Oras ${city.name}`,
-            ].map((name) => name.trim());
-
-            conditions.push({
-              $or: [
-                { 'adresa.localitate': { $in: cityVariations } },
-                { 'adresa_anaf.sediu_social.sdenumire_Localitate': { $in: cityVariations } },
-              ],
-            });
-          }
+          // This is the key change - use the new filter function
+          filter = await filterCompaniesByLocation(filter, judet, oras);
+        } else if (conditions.length > 0) {
+          filter = { $and: conditions };
         }
 
         if (hasWebsite === true) {
-          conditions.push({
-            'date_generale.website': { $exists: true, $ne: '' },
-          });
+          if (filter.$and) {
+            filter.$and.push({
+              'date_generale.website': { $exists: true, $ne: '' },
+            });
+          } else {
+            filter = {
+              $and: [...(filter.$and || []), { 'date_generale.website': { $exists: true, $ne: '' } }],
+            };
+          }
         }
 
         if (hasEmail === true) {
-          conditions.push({
-            'date_generale.email': { $exists: true, $ne: '' },
-          });
+          if (filter.$and) {
+            filter.$and.push({
+              'date_generale.email': { $exists: true, $ne: '' },
+            });
+          } else {
+            filter = {
+              $and: [...(filter.$and || []), { 'date_generale.email': { $exists: true, $ne: '' } }],
+            };
+          }
         }
 
         if (hasPhone === true) {
-          conditions.push({
-            'date_generale.telefon': { $exists: true, $ne: '' },
-          });
+          if (filter.$and) {
+            filter.$and.push({
+              'date_generale.telefon': { $exists: true, $ne: '' },
+            });
+          } else {
+            filter = {
+              $and: [...(filter.$and || []), { 'date_generale.telefon': { $exists: true, $ne: '' } }],
+            };
+          }
         }
 
         if (hasAdmin === true) {
-          conditions.push({
-            'date_generale.administrators': { $exists: true, $not: { $size: 0 } },
-          });
-        }
-
-        if (conditions.length > 0) {
-          filter = { $and: conditions };
+          if (filter.$and) {
+            filter.$and.push({
+              'date_generale.administrators': { $exists: true, $not: { $size: 0 } },
+            });
+          } else {
+            filter = {
+              $and: [...(filter.$and || []), { 'date_generale.administrators': { $exists: true, $not: { $size: 0 } } }],
+            };
+          }
         }
 
         let fieldName = 'date_generale.data_inregistrare';
@@ -682,10 +621,12 @@ const resolvers = {
               [fieldName]: { [comparisonOperator]: cur.fieldValue },
             };
 
-            if (conditions.length > 0) {
-              conditions.push(cursorFilter);
+            if (filter.$and) {
+              filter.$and.push(cursorFilter);
             } else {
-              filter = cursorFilter;
+              filter = {
+                $and: [...(filter.$and || []), cursorFilter],
+              };
             }
           }
         }
@@ -744,10 +685,15 @@ const resolvers = {
         const startTime = Date.now();
         logger.info('LatestCompanies input:', input);
 
-        const { first = 50, after, timeRange = 'LAST7DAYS', sortBy, customStartDate, customEndDate } = input;
+        const { first = 50, after, timeRange = 'LAST7DAYS', sortBy, customStartDate, customEndDate, judet, oras } = input;
 
         const dateFilter = buildDateFilter(timeRange, customStartDate, customEndDate);
         let filter = { 'date_generale.data_inregistrare': dateFilter };
+
+        // Add location filtering
+        if (judet || oras) {
+          filter = await filterCompaniesByLocation(filter, judet, oras);
+        }
 
         let fieldName = 'date_generale.data_inregistrare';
         let direction = sortBy && sortBy.direction === 'ASC' ? 1 : -1;
@@ -815,23 +761,39 @@ const resolvers = {
       }
     },
 
+    // Additional resolvers remain the same...
     latestCompaniesStats: async (_, { input }) => {
       try {
-        const { timeRange, customStartDate, customEndDate } = input;
+        const { timeRange, customStartDate, customEndDate, judet, oras } = input;
         const { $gte: start, $lte: end } = buildDateFilter(timeRange, customStartDate, customEndDate);
 
-        const statsCacheKey = `stats_${timeRange}_${start}_${end}`;
+        const statsCacheKey = `stats_${timeRange}_${start}_${end}_${judet || ''}_${oras || ''}`;
         const cachedStats = countCache.get(statsCacheKey);
 
         if (cachedStats) {
           return cachedStats;
         }
 
+        // Build the match stage with date filter
+        let matchStage = {
+          'date_generale.data_inregistrare': { $gte: start, $lte: end },
+        };
+
+        // Add location filtering if needed
+        if (judet || oras) {
+          let locationFilter = {};
+          locationFilter = await filterCompaniesByLocation(locationFilter, judet, oras);
+
+          // Merge the location filter with the match stage
+          if (locationFilter.$and) {
+            if (!matchStage.$and) matchStage.$and = [];
+            matchStage.$and = [...matchStage.$and, ...locationFilter.$and];
+          }
+        }
+
         const pipeline = [
           {
-            $match: {
-              'date_generale.data_inregistrare': { $gte: start, $lte: end },
-            },
+            $match: matchStage,
           },
           {
             $facet: {
@@ -1006,9 +968,11 @@ const resolvers = {
       try {
         const { cod_CAEN, caen_codes, judet, oras, hasWebsite, hasEmail, hasPhone, hasAdmin, stare, format } = input;
 
+        // Start with an empty filter
         let filter = {};
         const conditions = [];
 
+        // Apply standard filters
         if (caen_codes && caen_codes.length > 0) {
           conditions.push({ cod_CAEN: { $in: caen_codes } });
         } else if (cod_CAEN) {
@@ -1019,56 +983,47 @@ const resolvers = {
           conditions.push({ stare_firma: { $regex: stare } });
         }
 
-        if (judet) {
-          const county = await getCountyByCode(judet);
-          if (county) {
-            const countyVariations = [
-              county.name?.toUpperCase(),
-              ...(county.standardizedNames || []),
-              ...(county.aliases || []),
-            ];
-
-            conditions.push({
-              $or: [
-                { 'adresa.judet': { $in: countyVariations } },
-                { 'adresa_anaf.sediu_social.sdenumire_Judet': { $in: countyVariations } },
-              ],
-            });
+        // Apply location filters
+        if (judet || oras) {
+          if (conditions.length > 0) {
+            filter = { $and: conditions };
           }
+          filter = await filterCompaniesByLocation(filter, judet, oras);
+        } else if (conditions.length > 0) {
+          filter = { $and: conditions };
         }
 
-        if (oras) {
-          const city = await getCityByCode(oras);
-          if (city) {
-            const cityVariations = [city.name, ...(city.standardizedNames || []), ...(city.aliases || [])];
-
-            conditions.push({
-              $or: [
-                { 'adresa.localitate': { $in: cityVariations } },
-                { 'adresa_anaf.sediu_social.sdenumire_Localitate': { $in: cityVariations } },
-              ],
-            });
-          }
-        }
-
+        // Apply contact-related filters
         if (hasWebsite) {
-          conditions.push({ 'date_generale.website': { $exists: true, $ne: '' } });
+          if (filter.$and) {
+            filter.$and.push({ 'date_generale.website': { $exists: true, $ne: '' } });
+          } else {
+            filter = { $and: [{ 'date_generale.website': { $exists: true, $ne: '' } }] };
+          }
         }
 
         if (hasEmail) {
-          conditions.push({ 'date_generale.email': { $exists: true, $ne: '' } });
+          if (filter.$and) {
+            filter.$and.push({ 'date_generale.email': { $exists: true, $ne: '' } });
+          } else {
+            filter = { $and: [{ 'date_generale.email': { $exists: true, $ne: '' } }] };
+          }
         }
 
         if (hasPhone) {
-          conditions.push({ 'date_generale.telefon': { $exists: true, $ne: '' } });
+          if (filter.$and) {
+            filter.$and.push({ 'date_generale.telefon': { $exists: true, $ne: '' } });
+          } else {
+            filter = { $and: [{ 'date_generale.telefon': { $exists: true, $ne: '' } }] };
+          }
         }
 
         if (hasAdmin) {
-          conditions.push({ 'date_generale.administrators': { $exists: true, $not: { $size: 0 } } });
-        }
-
-        if (conditions.length > 0) {
-          filter.$and = conditions;
+          if (filter.$and) {
+            filter.$and.push({ 'date_generale.administrators': { $exists: true, $not: { $size: 0 } } });
+          } else {
+            filter = { $and: [{ 'date_generale.administrators': { $exists: true, $not: { $size: 0 } } }] };
+          }
         }
 
         const pageSize = 1000;
@@ -1130,12 +1085,17 @@ const resolvers = {
 
     exportLatestCompanies: async (_, { input }) => {
       try {
-        const { timeRange, customStartDate, customEndDate, format } = input;
+        const { timeRange, customStartDate, customEndDate, format, judet, oras } = input;
         const dateFilter = buildDateFilter(timeRange, customStartDate, customEndDate);
 
-        const filter = {
+        let filter = {
           'date_generale.data_inregistrare': dateFilter,
         };
+
+        // Apply location filters
+        if (judet || oras) {
+          filter = await filterCompaniesByLocation(filter, judet, oras);
+        }
 
         const totalCount = await Company.countDocuments(filter);
         const maxExportCount = 50000;

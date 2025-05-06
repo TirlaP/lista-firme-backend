@@ -1,0 +1,261 @@
+"""
+A company
+"""
+type Company {
+  """
+  Fiscal code (CUI)
+  """
+  cui: Int!
+
+  """
+  Company name (short)
+  """
+  nume: String!
+
+  """
+  Company full name
+  """
+  denumire: String!
+
+  """
+  Company address
+  """
+  adresa: Address
+
+  """
+  Full address as text
+  """
+  adresa_completa: String
+
+  """
+  Contact information
+  """
+  contact: Contact
+
+  """
+  CAEN code (business activity code)
+  """
+  cod_CAEN: String
+
+  """
+  Registration information
+  """
+  inregistrare: Registration
+
+  """
+  Company type information
+  """
+  tip_firma: CompanyType
+
+  """
+  CAEN code details
+  """
+  caen: CAEN
+
+  """
+  General data
+  """
+  date_generale: DateGenerale
+
+  """
+  ANAF address information
+  """
+  adresa_anaf: AdresaAnaf
+}
+
+"""
+Company contact information
+"""
+type Contact {
+  email: String
+  telefon: String
+  fax: String
+  website: String
+  mobil: String
+}
+
+"""
+Registration information
+"""
+type Registration {
+  numar: String
+  stare: String
+  data: String
+  organ_fiscal: String
+  data_actualizare: String
+  sursa: String
+}
+
+"""
+Company type information
+"""
+type CompanyType {
+  forma_juridica: String
+  forma_organizare: String
+  forma_proprietate: String
+}
+
+"""
+CAEN code information
+"""
+type CAEN {
+  code: String!
+  name: String!
+  section: String!
+  division: String!
+  description: String
+}
+
+"""
+General company data
+"""
+type DateGenerale {
+  cui: Int
+  denumire: String
+  adresa: String
+  telefon: String
+  fax: String
+  codPostal: String
+  stare_inregistrare: String
+  data_inregistrare: String
+  statusRO_e_Factura: Boolean
+  organFiscalCompetent: String
+  forma_de_proprietate: String
+  forma_organizare: String
+  forma_juridica: String
+  website: String
+  email: String
+  nrRegCom: String
+  TVA: Boolean
+  capital_social: Float
+  cifra_afaceri: Float
+  profit: Float
+  pierdere: Float
+  numar_angajati: Int
+  active: Float
+  numar_puncte_lucru: Int
+  numar_sucursale: Int
+  data_bilant: String
+  data_actualizare: String
+  observatii: String
+  cifra_afaceri_precedenta: Float
+  profit_precedent: Float
+  pierdere_precedenta: Float
+  active_precedente: Float
+  numar_angajati_precedent: Int
+  administrators: [String]
+}
+
+"""
+Result of an autocomplete search
+"""
+type AutocompleteResult {
+  companyId: String!
+  companyName: String
+  locality: String
+  county: String
+  streetName: String
+  streetNr: String
+  block: String
+  VAT: Boolean
+  staircase: String
+  apartment: String
+  taxId: String
+  status: String
+}
+
+"""
+A company
+"""
+type Company {
+  """
+  Fiscal code (CUI)
+  """
+  cui: Int!
+
+  """
+  Company name (short)
+  """
+  nume: String!
+
+  """
+  Company full name
+  """
+  denumire: String!
+
+  """
+  Company address
+  """
+  adresa: Address
+
+  """
+  Full address as text
+  """
+  adresa_completa: String
+
+  """
+  Contact information
+  """
+  contact: Contact
+
+  """
+  CAEN code (business activity code)
+  """
+  cod_CAEN: String
+
+  """
+  Registration information
+  """
+  inregistrare: Registration
+
+  """
+  Company type information
+  """
+  tip_firma: CompanyType
+
+  """
+  CAEN code details
+  """
+  caen: CAEN
+
+  """
+  General data
+  """
+  date_generale: DateGenerale
+
+  """
+  ANAF address information
+  """
+  adresa_anaf: AdresaAnaf
+
+  """
+  Location codes and information
+  """
+  location: CompanyLocation
+
+  """
+  County code for filtering
+  """
+  countyCode: String
+
+  """
+  City code for filtering
+  """
+  cityCode: String
+}
+
+"""
+Company address information
+"""
+type Address {
+  strada: String
+  numar: String
+  localitate: String
+  judet: String
+  cod_postal: String
+  detalii: String
+  tara: String
+  cod_judet: String
+  cod_judet_auto: String
+  cod_localitate: String
+}

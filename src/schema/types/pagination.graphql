@@ -1,0 +1,49 @@
+"""
+A connection to a list of companies
+"""
+type CompanyConnection {
+  """
+  A list of company edges
+  """
+  edges: [CompanyEdge!]!
+
+  """
+  Pagination information
+  """
+  pageInfo: PageInfo!
+
+  """
+  Total count of companies matching the filter criteria
+  """
+  totalCount: Int!
+}
+
+"""
+An edge in a company connection
+"""
+type CompanyEdge {
+  """
+  The company node
+  """
+  node: Company!
+
+  """
+  A cursor for pagination
+  """
+  cursor: String!
+}
+
+"""
+Pagination information
+"""
+type PageInfo {
+  """
+  Indicates if there are more pages
+  """
+  hasNextPage: Boolean!
+
+  """
+  The cursor to the last item in the current page
+  """
+  endCursor: String
+}

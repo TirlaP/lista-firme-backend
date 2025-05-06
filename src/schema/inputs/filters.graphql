@@ -1,0 +1,336 @@
+"""
+Common location filter fields
+"""
+input LocationFilterFields {
+  """
+  Filter by county (județ) code
+  """
+  judet: String
+
+  """
+  Filter by city (oraș) code
+  """
+  oras: String
+}
+
+"""
+Common contact filter fields
+"""
+input ContactFilterFields {
+  """
+  Filter companies that have a website
+  """
+  hasWebsite: Boolean
+
+  """
+  Filter companies that have email
+  """
+  hasEmail: Boolean
+
+  """
+  Filter companies that have phone
+  """
+  hasPhone: Boolean
+
+  """
+  Filter companies that have administrator
+  """
+  hasAdmin: Boolean
+}
+
+"""
+Common CAEN filter fields
+"""
+input CAENFilterFields {
+  """
+  Filter by CAEN code
+  """
+  cod_CAEN: String
+
+  """
+  Filter by multiple CAEN codes
+  """
+  caen_codes: [String]
+}
+
+"""
+Common status filter fields
+"""
+input StatusFilterFields {
+  """
+  Filter by company status
+  """
+  stare: String
+}
+
+"""
+Input for filtering companies
+"""
+input CompanyFilterInput {
+  """
+  Number of items to return
+  """
+  first: Int
+
+  """
+  Cursor for pagination
+  """
+  after: String
+
+  """
+  CAEN filter fields
+  """
+  cod_CAEN: String
+  caen_codes: [String]
+
+  """
+  Location filter fields
+  """
+  judet: String
+  oras: String
+
+  """
+  Contact filter fields
+  """
+  hasWebsite: Boolean
+  hasEmail: Boolean
+  hasPhone: Boolean
+  hasAdmin: Boolean
+
+  """
+  Status filter fields
+  """
+  stare: String
+
+  """
+  Financial filter fields
+  """
+  cifraAfaceriMin: Float
+  cifraAfaceriMax: Float
+  profitMin: Float
+  profitMax: Float
+  angajatiMin: Int
+  angajatiMax: Int
+  anInfiintareMin: Int
+  anInfiintareMax: Int
+
+  """
+  Sorting options
+  """
+  sortBy: CompanySortInput
+}
+
+"""
+Input for sorting companies
+"""
+input CompanySortInput {
+  field: CompanySortField!
+  direction: SortDirection!
+}
+
+"""
+Input for latest companies query
+"""
+input LatestCompaniesInput {
+  """
+  Number of items to return
+  """
+  first: Int
+
+  """
+  Cursor for pagination
+  """
+  after: String
+
+  """
+  Time range filter
+  """
+  timeRange: TimeRange
+
+  """
+  Custom start date (format: YYYY-MM-DD)
+  """
+  customStartDate: String
+
+  """
+  Custom end date (format: YYYY-MM-DD)
+  """
+  customEndDate: String
+
+  """
+  Location filter fields
+  """
+  judet: String
+  oras: String
+
+  """
+  Sorting options
+  """
+  sortBy: CompanySortInput
+}
+
+"""
+Input for latest companies statistics
+"""
+input LatestCompaniesStatsInput {
+  """
+  Time range filter
+  """
+  timeRange: TimeRange
+
+  """
+  Custom start date (format: YYYY-MM-DD)
+  """
+  customStartDate: String
+
+  """
+  Custom end date (format: YYYY-MM-DD)
+  """
+  customEndDate: String
+
+  """
+  Location filter fields
+  """
+  judet: String
+  oras: String
+}
+
+"""
+Common export input fields
+"""
+input ExportCommonFields {
+  """
+  CAEN filter fields
+  """
+  cod_CAEN: String
+  caen_codes: [String]
+
+  """
+  Location filter fields
+  """
+  judet: String
+  oras: String
+
+  """
+  Contact filter fields
+  """
+  hasWebsite: Boolean
+  hasEmail: Boolean
+  hasPhone: Boolean
+  hasAdmin: Boolean
+
+  """
+  Status filter fields
+  """
+  stare: String
+
+  """
+  Export format (csv or xlsx)
+  """
+  format: String!
+}
+
+"""
+Input for exporting companies
+"""
+input ExportCompaniesInput {
+  """
+  Filter by CAEN code
+  """
+  cod_CAEN: String
+
+  """
+  Filter by multiple CAEN codes
+  """
+  caen_codes: [String]
+
+  """
+  Filter by county (județ)
+  """
+  judet: String
+
+  """
+  Filter by city (oraș)
+  """
+  oras: String
+
+  """
+  Filter companies that have a website
+  """
+  hasWebsite: Boolean
+
+  """
+  Filter companies that have email
+  """
+  hasEmail: Boolean
+
+  """
+  Filter companies that have phone
+  """
+  hasPhone: Boolean
+
+  """
+  Filter companies that have administrator
+  """
+  hasAdmin: Boolean
+
+  """
+  Filter by company status
+  """
+  stare: String
+
+  """
+  Export format (csv or xlsx)
+  """
+  format: String!
+}
+
+"""
+Input for exporting latest companies
+"""
+input ExportLatestCompaniesInput {
+  """
+  Time range for the export
+  """
+  timeRange: TimeRange
+
+  """
+  Custom start date (format: YYYY-MM-DD)
+  """
+  customStartDate: String
+
+  """
+  Custom end date (format: YYYY-MM-DD)
+  """
+  customEndDate: String
+
+  """
+  Filter by county (județ)
+  """
+  judet: String
+
+  """
+  Filter by city (oraș)
+  """
+  oras: String
+
+  """
+  Export format (csv or xlsx)
+  """
+  format: String!
+}
+
+"""
+Input for Location filtering
+"""
+input LocationInput {
+  """
+  County code
+  """
+  countyCode: String
+
+  """
+  City code
+  """
+  cityCode: String
+}

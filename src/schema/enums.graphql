@@ -1,0 +1,26 @@
+"""
+Fields available for sorting companies
+"""
+enum CompanySortField {
+  REGISTRATION_DATE
+  CUI
+  NUME
+}
+
+"""
+Sort direction
+"""
+enum SortDirection {
+  ASC
+  DESC
+}
+
+"""
+Time range for filtering companies by registration date
+"""
+enum TimeRange {
+  TODAY
+  YESTERDAY
+  LAST7DAYS
+  LAST30DAYS
+}

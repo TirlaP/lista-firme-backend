@@ -1,19 +1,58 @@
 const passport = require('passport');
 const httpStatus = require('http-status');
 const ApiError = require('../utils/ApiError');
-const { roleRights } = require('../config/roles');
+const mongoose = require('mongoose');
 
 const verifyCallback = (req, resolve, reject, requiredRights) => async (err, user, info) => {
   if (err || info || !user) {
     return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate'));
   }
+
   req.user = user;
 
   if (requiredRights.length) {
-    const userRights = roleRights.get(user.role);
-    const hasRequiredRights = requiredRights.every((requiredRight) => userRights.includes(requiredRight));
-    if (!hasRequiredRights && req.params.userId !== user.id) {
-      return reject(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));
+    try {
+      // Special handling for admin role - admins have all permissions
+      if (user.role === 'admin') {
+        return resolve();
+      }
+
+      // Check permissions based on roleId
+      let hasPermission = false;
+
+      if (user.roleId) {
+        const Role = mongoose.model('Role');
+        const role = await Role.findById(user.roleId);
+
+        if (role && role.permissions) {
+          // Check if the role has any of the required permissions
+          hasPermission = requiredRights.some((permission) => role.permissions.includes(permission));
+        }
+      }
+
+      if (!hasPermission) {
+        return reject(new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access this resource'));
+      }
+
+      // Add permissions and limits to the request for later use
+      if (user.roleId) {
+        const Role = mongoose.model('Role');
+        const role = await Role.findById(user.roleId);
+        req.userPermissions = role ? role.permissions : [];
+        req.userLimits = role
+          ? role.limits
+          : {
+              companiesPerDay: 10,
+              exportsPerDay: 0,
+              maxExportRecords: 0,
+            };
+      }
+
+      // Reset daily usage if needed
+      await user.resetDailyUsageIfNeeded();
+    } catch (error) {
+      console.error('Permission check error:', error);
+      return reject(new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Error checking permissions'));
     }
   }
 

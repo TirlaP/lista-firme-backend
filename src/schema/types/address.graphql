@@ -1,0 +1,55 @@
+"""
+Company address
+"""
+type Address {
+  strada: String
+  numar: String
+  localitate: String
+  judet: String
+  cod_postal: String
+  detalii: String
+  tara: String
+  cod_judet: String
+  cod_judet_auto: String
+  cod_localitate: String
+}
+
+"""
+ANAF address information
+"""
+type AdresaAnaf {
+  sediu_social: SediuSocial
+  domiciliu_fiscal: DomiciliuFiscal
+}
+
+"""
+Social headquarters information
+"""
+type SediuSocial {
+  sdenumire_Strada: String
+  snumar_Strada: String
+  sdenumire_Localitate: String
+  scod_Localitate: String
+  sdenumire_Judet: String
+  scod_Judet: String
+  scod_JudetAuto: String
+  stara: String
+  sdetalii_Adresa: String
+  scod_Postal: String
+}
+
+"""
+Fiscal domicile information
+"""
+type DomiciliuFiscal {
+  ddenumire_Strada: String
+  dnumar_Strada: String
+  ddenumire_Localitate: String
+  dcod_Localitate: String
+  ddenumire_Judet: String
+  dcod_Judet: String
+  dcod_JudetAuto: String
+  dtara: String
+  ddetalii_Adresa: String
+  dcod_Postal: String
+}

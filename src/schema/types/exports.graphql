@@ -1,0 +1,19 @@
+"""
+Result of an export operation
+"""
+type ExportResult {
+  """
+  The file name
+  """
+  fileName: String!
+
+  """
+  The file content (base64 encoded for binary files)
+  """
+  content: String!
+
+  """
+  The MIME type of the file
+  """
+  mimeType: String!
+}

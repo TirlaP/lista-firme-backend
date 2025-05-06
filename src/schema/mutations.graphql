@@ -1,0 +1,14 @@
+"""
+Mutation root type
+"""
+type Mutation {
+  """
+  Export filtered companies to a file
+  """
+  exportCompanies(input: ExportCompaniesInput!): ExportResult!
+
+  """
+  Export latest companies to a file
+  """
+  exportLatestCompanies(input: ExportLatestCompaniesInput!): ExportResult!
+}

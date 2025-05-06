@@ -1,5 +1,6 @@
 module.exports.Token = require('./token.model');
 module.exports.User = require('./user.model');
+module.exports.Role = require('./role.model');
 module.exports.Company = require('./company.model');
 module.exports.Location = require('./location.model');
 module.exports.CompanyStat = require('./companyStat.model');
